@@ -2,15 +2,15 @@
 
 from setuptools import setup
 
-setup(name = "DesignSpaceDocument",
+setup(name = "ufoProcessor",
       version = "0.1",
-      description = "Python object to read, write and edit MutatorMath designspace data.",
+      description = "Python object to read, write and generate designspace data.",
       author = "Erik van Blokland",
       author_email = "erik@letterror.com",
-      url = "https://github.com/LettError/designSpaceDocument",
+      url = "https://github.com/LettError/ufoProcessor",
       license = "MIT",
       packages = [
-              "designSpaceDocument",
+              "ufoProcessor",
       ],
       package_dir = {"":"Lib"},
 )
