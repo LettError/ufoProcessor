@@ -402,9 +402,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         names = set()
         for sourceDescriptor in self.sources:
             if not sourceDescriptor.name in self.fonts:
-                self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
-                self.problems.append("loaded master from %s, format %d"%(sourceDescriptor.path, getUFOVersion(sourceDescriptor.path)))
-            names = names | set(self.fonts[sourceDescriptor.name].keys())
+                if os.path.exists(sourceDescriptor.path):
+                    self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
+                    self.problems.append("loaded master from %s, format %d"%(sourceDescriptor.path, getUFOVersion(sourceDescriptor.path)))
+                    names = names | set(self.fonts[sourceDescriptor.name].keys())
+                else:
+                    self.fonts[sourceDescriptor.name] = None
+                    self.problems.append("can't load master from %s"%(sourceDescriptor.path))
         self.glyphNames = list(names)
         self._fontsLoaded = True
 
@@ -839,4 +843,4 @@ if __name__ == "__main__":
         testDocument(docPath)
         testGenerateInstances(docPath)
         testSwap(docPath)
-        testUnicodes(docPath)
+        #testUnicodes(docPath)
