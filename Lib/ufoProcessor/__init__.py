@@ -16,7 +16,7 @@ import logging
 """
 
 
-from designSpaceDocument import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
 from defcon.objects.font import Font
 from defcon.pens.transformPointPen import TransformPointPen
 from defcon.objects.component import _defaultTransformation
@@ -234,7 +234,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
 
     def __init__(self, readerClass=None, writerClass=None, fontClass=None, ufoVersion=3):
-        super(DesignSpaceProcessor, self).__init__(readerClass=readerClass, writerClass=writerClass, fontClass=fontClass)
+        super(DesignSpaceProcessor, self).__init__(readerClass=readerClass, writerClass=writerClass)
         self.ufoVersion = ufoVersion         # target UFO version
         self.roundGeometry = False
         self._glyphMutators = {}
@@ -821,6 +821,8 @@ if __name__ == "__main__":
         for instance in d.instances:
             if os.path.exists(instance.path):
                 f = Font(instance.path)
+                print("instance.path", instance.path)
+                print("instance.name", instance.name, "f['narrow'].unicodes", f['narrow'].unicodes)
                 if instance.name == "TestFamily-TestStyle_pop1000.000":
                     assert f['narrow'].unicodes == [291, 292, 293]
                 else:
