@@ -111,6 +111,9 @@ def getUFOVersion(ufoPath):
     return p.get('formatVersion')
 
 def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________swap"):
+    # In font swap the glyphs oldName and newName.
+    # Also swap the names in components in order to preserve appearance.
+    # Also swap the names in font groups. 
     if not oldName in font or not newName in font:
         return None
     swapName = oldName + swapNameExtension
@@ -123,7 +126,6 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
     font[oldName].drawPoints(p)
     font[swapName].width = font[oldName].width
     # lib?
-    
     font[oldName].clear()
     p = font[oldName].getPointPen()
     font[newName].drawPoints(p)
@@ -185,6 +187,7 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
             remove.append(g.name)
     for r in remove:
         del font[r]
+
 
 class DecomposePointPen(object):
     
