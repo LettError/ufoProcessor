@@ -1,0 +1,9 @@
+README.md
+setup.py
+Lib/ufoProcessor/__init__.py
+Lib/ufoProcessor/sourceLayerTest.py
+Lib/ufoProcessor/test.py
+Lib/ufoProcessor.egg-info/PKG-INFO
+Lib/ufoProcessor.egg-info/SOURCES.txt
+Lib/ufoProcessor.egg-info/dependency_links.txt
+Lib/ufoProcessor.egg-info/top_level.txt

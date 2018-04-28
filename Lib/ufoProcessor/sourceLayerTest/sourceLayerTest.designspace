@@ -1,0 +1,82 @@
+<?xml version='1.0' encoding='utf-8'?>
+<designspace format="3">
+    <axes>
+        <axis default="0" maximum="600" minimum="0" name="motion" tag="MOVE" />
+    </axes>
+    <sources>
+        <source familyname="SourceLayerTest" filename="SourceLayerTest.ufo" stylename="Normal">
+            <location>
+                <dimension name="motion" xvalue="0" />
+            </location>
+            <info copy="1" />
+        </source>
+        <source familyname="SourceLayerTest" filename="SourceLayerTest.ufo" stylename="Normal" layer="master_2">
+            <location>
+                <dimension name="motion" xvalue="200" />
+            </location>
+        </source>
+        <source familyname="SourceLayerTest" filename="SourceLayerTest.ufo" stylename="Normal" layer="master_3">
+            <location>
+                <dimension name="motion" xvalue="400" />
+            </location>
+        </source>
+        <source familyname="SourceLayerTest" filename="SourceLayerTest.ufo" stylename="Normal" layer="master_4">
+            <location>
+                <dimension name="motion" xvalue="600" />
+            </location>
+        </source>
+    </sources>
+    <instances>
+        <instance familyname="SourceLayerTest" filename="instances/SourceLayerTest-100.ufo" postscriptfontname="SourceLayerTest-100" stylename="100">
+            <location>
+                <dimension name="motion" xvalue="100" />
+            </location>
+            <kerning />
+            <info />
+            <lib>
+                <dict>
+                    <key>com.superpolator.test</key>
+                    <array>
+                        <integer>1</integer>
+                        <integer>2</integer>
+                        <integer>3</integer>
+                    </array>
+                </dict>
+            </lib>
+        </instance>
+        <instance familyname="SourceLayerTest" filename="instances/SourceLayerTest-300.ufo" postscriptfontname="SourceLayerTest-300" stylename="300">
+            <location>
+                <dimension name="motion" xvalue="300" />
+            </location>
+            <kerning />
+            <info />
+            <lib>
+                <dict>
+                    <key>com.superpolator.test</key>
+                    <array>
+                        <integer>1</integer>
+                        <integer>2</integer>
+                        <integer>3</integer>
+                    </array>
+                </dict>
+            </lib>
+        </instance>
+        <instance familyname="SourceLayerTest" filename="instances/SourceLayerTest-500.ufo" postscriptfontname="SourceLayerTest-500" stylename="500">
+            <location>
+                <dimension name="motion" xvalue="500" />
+            </location>
+            <kerning />
+            <info />
+            <lib>
+                <dict>
+                    <key>com.superpolator.test</key>
+                    <array>
+                        <integer>1</integer>
+                        <integer>2</integer>
+                        <integer>3</integer>
+                    </array>
+                </dict>
+            </lib>
+        </instance>
+    </instances>
+</designspace>

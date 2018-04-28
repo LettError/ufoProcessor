@@ -13,7 +13,7 @@ The easiest way to use ufoProcessor is to call `build(designspacePath)`
 
 * documentPath: path to the designspace file.
 * outputUFOFormatVersion: integer, 2, 3. Format for generated UFOs. Note: can be different from source UFO format.
-* roundGeometry: bool, if the geometry needs to be rounded to whole integers.
-* processRules: bool, execute designspace rules as swaps.
+* roundGeometry: bool, if the geometry needs to be rounded to whole integers. This affects glyphs, metrics, kerning, select font info.
+* processRules: bool, when generating UFOs, execute designspace rules as swaps.
 * logger: optional logger object.
 

@@ -1,5 +1,6 @@
-
 # coding: utf-8
+
+
 from __future__ import print_function, division, absolute_import
 
 from ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
@@ -16,7 +17,10 @@ import logging
 """
 
 
-from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+# import from the local designSpaceLib until it is available in the RF fonttools
+#from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+from ufoProcessor.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+
 from defcon.objects.font import Font
 from defcon.pens.transformPointPen import TransformPointPen
 from defcon.objects.component import _defaultTransformation
@@ -265,9 +269,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 if existingUFOFormatVersion > self.ufoVersion:
                     self.problems.append(u"Can’t overwrite existing UFO%d with UFO%d."%(existingUFOFormatVersion, self.ufoVersion))
                     continue
-            else:
-                font.save(path, self.ufoVersion)
-                self.problems.append("Generated %s as UFO%d"%(os.path.basename(path), self.ufoVersion))
+            font.save(path, self.ufoVersion)
+            self.problems.append("Generated %s as UFO%d"%(os.path.basename(path), self.ufoVersion))
 
     def getInfoMutator(self):
         """ Returns a info mutator """
@@ -313,16 +316,25 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for sourceDescriptor in self.sources:
             loc = Location(sourceDescriptor.location)
             f = self.fonts[sourceDescriptor.name]
+            sourceLayer = f
             if glyphName in sourceDescriptor.mutedGlyphNames:
                 continue
             if not glyphName in f:
                 # log this>
                 continue
-            sourceGlyphObject = f[glyphName]
+            layerName = "foreground"
+            # handle source layers
+
+            if sourceDescriptor.layerName is not None:
+                if sourceDescriptor.layerName in f.layers:
+                    sourceLayer = f.layers[sourceDescriptor.layerName]
+                    layerName = sourceDescriptor.layerName
+            sourceGlyphObject = sourceLayer[glyphName]
             if decomposeComponents:
+                # what about decomposing glyphs in a partial font?
                 temp = self.glyphClass()
                 p = temp.getPointPen()
-                dpp = DecomposePointPen(f, p)
+                dpp = DecomposePointPen(sourceLayer, p)
                 sourceGlyphObject.drawPoints(dpp)
                 temp.width = sourceGlyphObject.width
                 temp.name = sourceGlyphObject.name
@@ -330,7 +342,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 processThis = temp
             else:
                 processThis = sourceGlyphObject
-            sourceInfo = dict(source=f.path, glyphName=glyphName, layerName="foreground", location=sourceDescriptor.location, sourceName=sourceDescriptor.name)
+            sourceInfo = dict(source=f.path, glyphName=glyphName, layerName=layerName, location=sourceDescriptor.location, sourceName=sourceDescriptor.name)
             items.append((loc, self.mathGlyphClass(processThis), sourceInfo))
         return items
 
@@ -360,6 +372,15 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     self.problems.append("can't load master from %s"%(sourceDescriptor.path))
         self.glyphNames = list(names)
         self._fontsLoaded = True
+
+    def getFonts(self):
+        # returnn a list of (font object, location) tuples
+        fonts = []
+        for sourceDescriptor in self.sources:
+            f = self.fonts.get(sourceDescriptor.name)
+            if f is not None:
+                fonts.append((f, sourceDescriptor.location))
+        return fonts
 
     def makeInstance(self, instanceDescriptor, doRules=False, glyphNames=None):
         """ Generate a font object for this instance """
@@ -690,7 +711,7 @@ if __name__ == "__main__":
         f1.save(path1, 2)
         return path1, path2
 
-    def testDocument(docPath):
+    def testDocument(docPath, makeSmallChange=False):
         # make the test fonts and a test document
         testFontPath = os.path.join(os.getcwd(), "automatic_testfonts")
         m1, m2, i1, i2, i3 = makeTestFonts(testFontPath)
@@ -712,7 +733,10 @@ if __name__ == "__main__":
         d.addSource(s1)
         s2 = SourceDescriptor()
         s2.path = m2
-        s2.location = dict(pop=1000)
+        if makeSmallChange:
+            s2.location = dict(pop=2000)
+        else:
+            s2.location = dict(pop=1000)
         s2.name = "test.master.2"
         #s2.copyInfo = True
         d.addSource(s2)
@@ -792,4 +816,8 @@ if __name__ == "__main__":
         testDocument(docPath)
         testGenerateInstances(docPath)
         testSwap(docPath)
+
+        testDocument(docPath, makeSmallChange=True)
+        testGenerateInstances(docPath)
+
         #testUnicodes(docPath)

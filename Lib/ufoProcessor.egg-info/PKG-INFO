@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: ufoProcessor
+Version: 0.2
+Summary: Python object to read, write and generate designspace data.
+Home-page: https://github.com/LettError/ufoProcessor
+Author: Erik van Blokland
+Author-email: erik@letterror.com
+License: MIT
+Description: UNKNOWN
+Platform: UNKNOWN
