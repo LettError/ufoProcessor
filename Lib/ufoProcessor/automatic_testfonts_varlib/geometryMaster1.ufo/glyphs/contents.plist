@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>glyphFour</key>
+	<string>glyphF_our.glif</string>
+	<key>glyphOne</key>
+	<string>glyphO_ne.glif</string>
+	<key>glyphThree</key>
+	<string>glyphT_hree.glif</string>
+	<key>glyphTwo</key>
+	<string>glyphT_wo.glif</string>
+	<key>narrow</key>
+	<string>narrow.glif</string>
+	<key>narrow.component</key>
+	<string>narrow.component.glif</string>
+	<key>wide</key>
+	<string>wide.glif</string>
+	<key>wide.component</key>
+	<string>wide.component.glif</string>
+</dict>
+</plist>

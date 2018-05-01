@@ -4,10 +4,22 @@
   <unicode hex="0041"/>
   <outline>
     <contour>
-      <point x="290" y="558" type="line"/>
-      <point x="458" y="558" type="line"/>
-      <point x="458" y="726" type="line"/>
-      <point x="290" y="726" type="line"/>
+      <point x="310" y="552" type="line"/>
+      <point x="465" y="618" type="line"/>
+      <point x="399" y="772" type="line"/>
+      <point x="244" y="706" type="line"/>
     </contour>
   </outline>
+  <lib>
+    <dict>
+      <key>com.typemytype.robofont.Image.Brightness</key>
+      <integer>0</integer>
+      <key>com.typemytype.robofont.Image.Contrast</key>
+      <integer>1</integer>
+      <key>com.typemytype.robofont.Image.Saturation</key>
+      <integer>1</integer>
+      <key>com.typemytype.robofont.Image.Sharpness</key>
+      <real>0.4</real>
+    </dict>
+  </lib>
 </glyph>
