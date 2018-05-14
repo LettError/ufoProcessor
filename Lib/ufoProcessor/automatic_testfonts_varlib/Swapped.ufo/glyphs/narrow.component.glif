@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="narrow.component" format="1">
-  <advance width="100"/>
-  <unicode hex="00CD"/>
-  <outline>
-    <component base="wide"/>
-  </outline>
-</glyph>

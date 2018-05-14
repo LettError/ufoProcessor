@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-# temp location for designspaceLib until it is available in RF's fonttools
-
 from __future__ import print_function, division, absolute_import
 import collections
 import logging
@@ -162,44 +160,48 @@ class SourceDescriptor(SimpleDescriptor):
 class RuleDescriptor(SimpleDescriptor):
     """<!-- optional: list of substitution rules -->
     <rules>
-        <rule name="vertical.bars" enabled="true">
-            <sub name="cent" byname="cent.alt"/>
-            <sub name="dollar" byname="dollar.alt"/>
-            <condition tag="wght" minimum ="250.000000" maximum ="750.000000"/>
-            <condition tag="wdth" minimum ="100"/>
-            <condition tag="opsz" minimum="10" maximum="40"/>
+        <rule name="vertical.bars">
+            <conditionset>
+                <condition minimum="250.000000" maximum="750.000000" name="weight"/>
+                <condition minimum="100" name="width"/>
+                <condition minimum="10" maximum="40" name="optical"/>
+            </conditionset>
+            <sub name="cent" with="cent.alt"/>
+            <sub name="dollar" with="dollar.alt"/>
         </rule>
     </rules>
-
-    Discussion:
-    use axis names rather than tags - then we can evaluate the rule without having to look up the axes.
-    remove the subs from the rule.
-    remove 'enabled' attr form rule
     """
-    _attrs = ['name', 'conditions', 'subs']   # what do we need here
+    _attrs = ['name', 'conditionSets', 'subs']   # what do we need here
     def __init__(self):
         self.name = None
-        self.conditions = []    # list of dict(tag='aaaa', minimum=0, maximum=1000)
-        self.subs = []          # list of substitutions stored as tuples of glyphnames ("a", "a.alt")
+        self.conditionSets = []  # list of list of dict(name='aaaa', minimum=0, maximum=1000)
+        self.subs = []  # list of substitutions stored as tuples of glyphnames ("a", "a.alt")
+
 
 def evaluateRule(rule, location):
-    """ Test if rule is True at location.maximum
-        If a condition has no minimum, check for < maximum.
-        If a condition has no maximum, check for > minimum.
-     """
-    for cd in rule.conditions:
-        if not cd['name'] in location:
-            continue
+    """ Return True if any of the rule's conditionsets matches the
+    given location.
+    """
+    return any(evaluateConditions(c, location) for c in rule.conditionSets)
+
+
+def evaluateConditions(conditions, location):
+    """ Return True if all the conditions matches the given location.
+    If a condition has no minimum, check for < maximum.
+    If a condition has no maximum, check for > minimum.
+    """
+    for cd in conditions:
+        value = location[cd['name']]
         if cd.get('minimum') is None:
-            if not location[cd['name']] <= cd['maximum']:
+            if value > cd['maximum']:
                 return False
         elif cd.get('maximum') is None:
-            if not cd['minimum'] <= location[cd['name']]:
+            if cd['minimum'] > value:
                 return False
-        else:
-            if not cd['minimum'] <= location[cd['name']] <= cd['maximum']:
-                return False
+        elif not cd['minimum'] <= value <= cd['maximum']:
+            return False
     return True
+
 
 def processRules(rules, location, glyphNames):
     """ Apply these rules at this location to these glyphnames.minimum
@@ -359,13 +361,9 @@ class BaseDocWriter(object):
     def __init__(self, documentPath, documentObject):
         self.path = documentPath
         self.documentObject = documentObject
-        self.toolVersion = 3
+        self.documentVersion = "4.0"
         self.root = ET.Element("designspace")
-        self.root.attrib['format'] = "%d" % self.toolVersion
-        #self.root.append(ET.Element("axes"))
-        #self.root.append(ET.Element("rules"))
-        #self.root.append(ET.Element("sources"))
-        #self.root.append(ET.Element("instances"))
+        self.root.attrib['format'] = self.documentVersion
         self.axes = []
         self.rules = []
 
@@ -436,27 +434,33 @@ class BaseDocWriter(object):
         # if none of the conditions have minimum or maximum values, do not add the rule.
         self.rules.append(ruleObject)
         ruleElement  = ET.Element('rule')
-        ruleElement.attrib['name'] = ruleObject.name
-        for cond in ruleObject.conditions:
-            if cond.get('minimum') is None and cond.get('maximum') is None:
-                # neither is defined, don't add this condition
-                continue
-            conditionElement = ET.Element('condition')
-            conditionElement.attrib['name'] = cond.get('name')
-            if cond.get('minimum') is not None:
-                conditionElement.attrib['minimum'] = self.intOrFloat(cond.get('minimum'))
-            if cond.get('maximum') is not None:
-                conditionElement.attrib['maximum'] = self.intOrFloat(cond.get('maximum'))
-            ruleElement.append(conditionElement)
+        if ruleObject.name is not None:
+            ruleElement.attrib['name'] = ruleObject.name
+        for conditions in ruleObject.conditionSets:
+            conditionsetElement = ET.Element('conditionset')
+            for cond in conditions:
+                if cond.get('minimum') is None and cond.get('maximum') is None:
+                    # neither is defined, don't add this condition
+                    continue
+                conditionElement = ET.Element('condition')
+                conditionElement.attrib['name'] = cond.get('name')
+                if cond.get('minimum') is not None:
+                    conditionElement.attrib['minimum'] = self.intOrFloat(cond.get('minimum'))
+                if cond.get('maximum') is not None:
+                    conditionElement.attrib['maximum'] = self.intOrFloat(cond.get('maximum'))
+                conditionsetElement.append(conditionElement)
+            if len(conditionsetElement):
+                ruleElement.append(conditionsetElement)
+        # XXX shouldn't we require at least one sub element?
+        # if not ruleObject.subs:
+        #     raise DesignSpaceDocument('Invalid empty rule with no "sub" elements')
         for sub in ruleObject.subs:
-            # skip empty subs
-            if sub[0] == '' and sub[1] == '':
-                continue
             subElement = ET.Element('sub')
             subElement.attrib['name'] = sub[0]
             subElement.attrib['with'] = sub[1]
             ruleElement.append(subElement)
-        self.root.findall('.rules')[0].append(ruleElement)
+        if len(ruleElement):
+            self.root.findall('.rules')[0].append(ruleElement)
 
     def _addAxis(self, axisObject):
         self.axes.append(axisObject)
@@ -650,10 +654,9 @@ class BaseDocReader(object):
     def __init__(self, documentPath, documentObject):
         self.path = documentPath
         self.documentObject = documentObject
-        self.documentObject.formatVersion = 0
         tree = ET.parse(self.path)
         self.root = tree.getroot()
-        self.documentObject.formatVersion = int(self.root.attrib.get("format", 0))
+        self.documentObject.formatVersion = self.root.attrib.get("format", "3.0")
         self.axes = []
         self.rules = []
         self.sources = []
@@ -684,24 +687,35 @@ class BaseDocReader(object):
         # read the rules
         rules = []
         for ruleElement in self.root.findall(".rules/rule"):
+            print("hey ruleDescriptorClass", self.ruleDescriptorClass)
             ruleObject = self.ruleDescriptorClass()
             ruleObject.name = ruleElement.attrib.get("name")
-            for conditionElement in ruleElement.findall('.condition'):
-                cd = {}
-                cdMin = conditionElement.attrib.get("minimum")
-                if cdMin is not None:
-                    cd['minimum'] = float(cdMin)
-                else:
-                    # will allow these to be None, assume axis.minimum
-                    cd['minimum'] = None
-                cdMax = conditionElement.attrib.get("maximum")
-                if cdMax is not None:
-                    cd['maximum'] = float(cdMax)
-                else:
-                    # will allow these to be None, assume axis.maximum
-                    cd['maximum'] = None
-                cd['name'] = conditionElement.attrib.get("name")
-                ruleObject.conditions.append(cd)
+            for conditionSetElement in ruleElement.findall('.conditionset'):
+                cds = []
+                for conditionElement in conditionSetElement.findall('.condition'):
+                    cd = {}
+                    cdMin = conditionElement.attrib.get("minimum")
+                    if cdMin is not None:
+                        cd['minimum'] = float(cdMin)
+                    else:
+                        # will allow these to be None, assume axis.minimum
+                        cd['minimum'] = None
+                    cdMax = conditionElement.attrib.get("maximum")
+                    if cdMax is not None:
+                        cd['maximum'] = float(cdMax)
+                    else:
+                        # will allow these to be None, assume axis.maximum
+                        cd['maximum'] = None
+                    cd['name'] = conditionElement.attrib.get("name")
+                    # test for things
+                    if cd.get('minimum') is None and cd.get('maximum') is None:
+                        if ruleObject.name is not None:
+                            n = ruleObject.name
+                        else:
+                            n = "%d" % len(rules)
+                        raise DesignSpaceDocumentError("No minimum or maximum defined in rule \"%s\"." % n)
+                    cds.append(cd)
+                ruleObject.conditionSets.append(cds)
             for subElement in ruleElement.findall('.sub'):
                 a = subElement.attrib['name']
                 b = subElement.attrib['with']
@@ -723,15 +737,7 @@ class BaseDocReader(object):
             axisObject.maximum = float(axisElement.attrib.get("maximum"))
             if axisElement.attrib.get('hidden', False):
                 axisObject.hidden = True
-            # we need to check if there is an attribute named "initial"
-            if axisElement.attrib.get("default") is None:
-                if axisElement.attrib.get("initial") is not None:
-                    # stop doing this,
-                    axisObject.default = float(axisElement.attrib.get("initial"))
-                else:
-                    axisObject.default = axisObject.minimum
-            else:
-                axisObject.default = float(axisElement.attrib.get("default"))
+            axisObject.default = float(axisElement.attrib.get("default"))
             axisObject.tag = axisElement.attrib.get("tag")
             for mapElement in axisElement.findall('map'):
                 a = float(mapElement.attrib['input'])
@@ -816,7 +822,7 @@ class BaseDocReader(object):
             sourceName = sourceElement.attrib.get('name')
             if sourceName is None:
                 # add a temporary source name
-                sourceName = "temp_master.%d"%(sourceCount)
+                sourceName = "temp_master.%d" % (sourceCount)
             sourceObject = self.sourceDescriptorClass()
             sourceObject.path = sourcePath        # absolute path to the ufo source
             sourceObject.filename = filename      # path as it is stored in the document
@@ -1245,7 +1251,7 @@ class DesignSpaceDocument(object):
             if mutatorDefaultCandidate is not None:
                 if mutatorDefaultCandidate.name != flaggedDefaultCandidate.name:
                     # warn if we have a conflict
-                    self.logger.info("Note: conflicting default masters:\n\tUsing %s as default\n\tMutator found %s"%(flaggedDefaultCandidate.name, mutatorDefaultCandidate.name))
+                    self.logger.info("Note: conflicting default masters:\n\tUsing %s as default\n\tMutator found %s" % (flaggedDefaultCandidate.name, mutatorDefaultCandidate.name))
             self.default = flaggedDefaultCandidate
             self.defaultLoc = self.default.location
         else:
@@ -1270,7 +1276,7 @@ class DesignSpaceDocument(object):
                 if axisObj.minimum <= neutralAxisValue <= axisObj.maximum:
                     # yes we can fix this
                     axisObj.default = neutralAxisValue
-                    self.logger.info("Note: updating the default value of axis %s to neutral master at %3.3f"%(axisObj.name, neutralAxisValue))
+                    self.logger.info("Note: updating the default value of axis %s to neutral master at %3.3f" % (axisObj.name, neutralAxisValue))
                 # always fit the axis dimensions to the location of the designated neutral
                 elif neutralAxisValue < axisObj.minimum:
                     axisObj.default = neutralAxisValue
@@ -1280,7 +1286,7 @@ class DesignSpaceDocument(object):
                     axisObj.default = neutralAxisValue
                 else:
                     # now we're in trouble, can't solve this, alert.
-                    self.logger.info("Warning: mismatched default value for axis %s and neutral master. Master value outside of axis bounds"%(axisObj.name))
+                    self.logger.info("Warning: mismatched default value for axis %s and neutral master. Master value outside of axis bounds" % (axisObj.name))
 
     def getMutatorDefaultCandidate(self):
         # FIXME: original implementation using MutatorMath
@@ -1418,18 +1424,21 @@ class DesignSpaceDocument(object):
             axis.default = default
         # now the rules
         for rule in self.rules:
-            newConditions = []
-            for cond in rule.conditions:
-                if cond.get('minimum') is not None:
-                    minimum = self.normalizeLocation({cond['name']:cond['minimum']}).get(cond['name'])
-                else:
-                    minimum = None
-                if cond.get('maximum') is not None:
-                    maximum = self.normalizeLocation({cond['name']:cond['maximum']}).get(cond['name'])
-                else:
-                    maximum = None
-                newConditions.append(dict(name=cond['name'], minimum=minimum, maximum=maximum))
-            rule.conditions = newConditions
+            newConditionSets = []
+            for conditions in rule.conditionSets:
+                newConditions = []
+                for cond in conditions:
+                    if cond.get('minimum') is not None:
+                        minimum = self.normalizeLocation({cond['name']:cond['minimum']}).get(cond['name'])
+                    else:
+                        minimum = None
+                    if cond.get('maximum') is not None:
+                        maximum = self.normalizeLocation({cond['name']:cond['maximum']}).get(cond['name'])
+                    else:
+                        maximum = None
+                    newConditions.append(dict(name=cond['name'], minimum=minimum, maximum=maximum))
+                newConditionSets.append(newConditions)
+            rule.conditionSets = newConditionSets
 
 
 def rulesToFeature(doc, whiteSpace="\t", newLine="\n"):
@@ -1440,11 +1449,11 @@ def rulesToFeature(doc, whiteSpace="\t", newLine="\n"):
     axisDims = {axis.tag: (axis.minimum, axis.maximum) for axis in doc.axes}
     text = []
     for rule in doc.rules:
-        text.append("rule %s{"%rule.name)
+        text.append("rule %s{" % rule.name)
         for cd in rule.conditions:
             axisTag = axisNames.get(cd.get('name'), "****")
             axisMinimum = cd.get('minimum', axisDims.get(axisTag, [0,0])[0])
             axisMaximum = cd.get('maximum', axisDims.get(axisTag, [0,0])[1])
-            text.append("%s%s %f %f;"%(whiteSpace, axisTag, axisMinimum, axisMaximum))
-        text.append("} %s;"%rule.name)
+            text.append("%s%s %f %f;" % (whiteSpace, axisTag, axisMinimum, axisMaximum))
+        text.append("} %s;" % rule.name)
     return newLine.join(text)

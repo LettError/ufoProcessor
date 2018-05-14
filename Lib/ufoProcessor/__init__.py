@@ -44,7 +44,7 @@ class VariationModelMutator(object):
         # items: list of locationdict, value tuples
         # axes: list of axis dictionaried, not axisdescriptor objects.
         # model: a model, if we want to share one
-        print("VariationModelMutator axes", axes)
+        #print("VariationModelMutator axes", axes)
         self.axisOrder = [a['name'] for a in axes]
         self.axes = {}
         for a in axes:
@@ -291,6 +291,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         self.glyphNames = []     # list of all glyphnames
         self.processRules = True
         self.problems = []  # receptacle for problem notifications. Not big enough to break, but also not small enough to ignore.
+        if readerClass is not None:
+            print("ufoProcessor.ruleDescriptorClass", readerClass.ruleDescriptorClass)
 
     def generateUFO(self, processRules=True):
         # makes the instances
@@ -348,7 +350,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for sourceDescriptor in self.sources:
             loc = Location(sourceDescriptor.location)
             sourceFont = self.fonts[sourceDescriptor.name]
-            infoItems.append((loc, self.mathInfoClass(sourceFont.info)))
+            infoItems.append((loc, self.mathInfoClass(sourceFont)))
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=self.defaultLoc)
         return self._infoMutator
 
@@ -366,16 +368,19 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return self._kerningMutator
 
     def getGlyphMutator(self, glyphName, decomposeComponents=False, fromCache=True):
-        print("getGlyphMutator 1", self.useVarlib)
         cacheKey = (glyphName, decomposeComponents)
-        print("getGlyphMutator 2 cacheKey", cacheKey)
-        print("getGlyphMutator 3 self._glyphMutators", self._glyphMutators.keys())
         if cacheKey in self._glyphMutators and fromCache:
             return self._glyphMutators[cacheKey]
         items = self.collectMastersForGlyph(glyphName, decomposeComponents=decomposeComponents)
-        items = [(a,self.mathGlyphClass(b)) for a, b, c in items]
+        new = []
+        for a, b, c in items:
+            if hasattr(b, "toMathGlyph"):
+                new.append((a,b.toMathGlyph()))
+            else:
+                new.append((a,self.mathGlyphClass(b)))
+        items = new
+        #items = [(a,self.mathGlyphClass(b)) for a, b, c in items]
         bias, thing = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
-        print("getGlyphMutator 5 thing", thing)
         self._glyphMutators[cacheKey] = thing
         return thing
 
@@ -416,7 +421,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             else:
                 processThis = sourceGlyphObject
             sourceInfo = dict(source=f.path, glyphName=glyphName, layerName=layerName, location=sourceDescriptor.location, sourceName=sourceDescriptor.name)
-            items.append((loc, self.mathGlyphClass(processThis), sourceInfo))
+            if hasattr(processThis, "toMathGlyph"):
+                processThis = processThis.toMathGlyph()
+            else:
+                processThis = self.mathGlyphClass(processThis)
+            items.append((loc, processThis, sourceInfo))
         return items
 
     def getNeutralFont(self):
@@ -463,7 +472,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         # groups, 
         if hasattr(self.fonts[self.default.name], "kerningGroupConversionRenameMaps"):
             renameMap = self.fonts[self.default.name].kerningGroupConversionRenameMaps
-            self.problems.append("renameMap %s"%renameMap)
+            #self.problems.append("renameMap %s"%renameMap)
         else:
             renameMap = {}
         font.kerningGroupConversionRenameMaps = renameMap
@@ -523,7 +532,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 if glyphMutator is None:
                     continue
             except:
-                self.problems.append("Could not make mutator for glyph %s %s"%glyphName, traceback.format_exc())
+                self.problems.append("Could not make mutator for glyph %s %s"%(glyphName, traceback.format_exc()))
                 continue
             if glyphName in instanceDescriptor.glyphs.keys():
                 # reminder: this is what the glyphData can look like
@@ -557,12 +566,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 continue
             glyphInstanceLocation = Location(glyphData.get("instanceLocation", instanceDescriptor.location))
             uniValues = []
-            print("\txxx 1", glyphMutator)
             neutral = glyphMutator.get(())
-            print("\txxx 2", neutral)
             if neutral is not None:
                 uniValues = neutral[0].unicodes
-            print("\txxx 3", uniValues)
             glyphInstanceUnicodes = glyphData.get("unicodes", uniValues)
             note = glyphData.get("note")
             if note:
@@ -576,7 +582,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     m = self.fonts.get(sourceGlyphFont)
                     if not sourceGlyphName in m:
                         continue
-                    sourceGlyph = MathGlyph(m[sourceGlyphName])
+                    if hasattr(m[sourceGlyphName], "toMathGlyph"):
+                        sourceGlyph = m[sourceGlyphName].toMathGlyph()
+                    else:
+                        sourceGlyph = MathGlyph(m[sourceGlyphName])
                     sourceGlyphLocation = Location(glyphMaster.get("location"))
                     items.append((sourceGlyphLocation, sourceGlyph))
                 bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
@@ -890,7 +899,7 @@ if __name__ == "__main__":
             else:
                 print("Missing test font at %s"%instance.path)
 
-    USEVARLIBMODEL = False
+    USEVARLIBMODEL = True
     print("testing with USEVARLIBMODEL:", USEVARLIBMODEL)
 
     selfTest = True
