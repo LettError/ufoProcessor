@@ -899,25 +899,16 @@ if __name__ == "__main__":
             else:
                 print("Missing test font at %s"%instance.path)
 
-    USEVARLIBMODEL = True
-    print("testing with USEVARLIBMODEL:", USEVARLIBMODEL)
-
     selfTest = True
     if selfTest:
-        if USEVARLIBMODEL:
-            extension = "varlib"
-        else:
-            extension = "mutator"
-        testRoot = os.path.join(os.getcwd(), "automatic_testfonts_%s"%extension)
-        #testRoot = os.path.join(os.getcwd(), "automatic_testfonts")
-        if os.path.exists(testRoot):
-            shutil.rmtree(testRoot)
-        docPath = os.path.join(testRoot, "automatic_test.designspace")
-        testDocument(docPath, useVarlib=USEVARLIBMODEL)
-        testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL)
-        testSwap(docPath)
-
-        testDocument(docPath, makeSmallChange=False, useVarlib=USEVARLIBMODEL)
-        testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL)
-
-        #testUnicodes(docPath, useVarlib=USEVARLIBMODEL)
+        for extension in ['varlib', 'mutator']:
+            USEVARLIBMODEL = extension == 'varlib'
+            testRoot = os.path.join(os.getcwd(), "automatic_testfonts_%s"%extension)
+            if os.path.exists(testRoot):
+                shutil.rmtree(testRoot)
+            docPath = os.path.join(testRoot, "automatic_test.designspace")
+            testDocument(docPath, useVarlib=USEVARLIBMODEL)
+            testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL)
+            testSwap(docPath)
+            testDocument(docPath, makeSmallChange=False, useVarlib=USEVARLIBMODEL)
+            testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL)
