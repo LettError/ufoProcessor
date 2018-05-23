@@ -19,7 +19,8 @@ import logging, traceback
 
 # import from the local designSpaceLib until it is available in the RF fonttools
 #from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
-from ufoProcessor.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+#from ufoProcessor.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
 
 from defcon.objects.font import Font
 from defcon.pens.transformPointPen import TransformPointPen
@@ -29,16 +30,26 @@ from fontMath.mathGlyph import MathGlyph
 from fontMath.mathInfo import MathInfo
 from fontMath.mathKerning import MathKerning
 from mutatorMath.objects.mutator import buildMutator
-from mutatorMath.objects.location import biasFromLocations, Location
+from mutatorMath.objects.location import biasFromLocations
 import plistlib
 import os
 
 from fontTools.designspaceLib import AxisDescriptor
 from fontTools.varLib.models import VariationModel, normalizeLocation
 
+
+
+class UFOProcessorError(Exception):
+    def __init__(self, msg, obj=None):
+        self.msg = msg
+        self.obj = obj
+
+    def __str__(self):
+        return repr(self.msg) + repr(self.obj)
+
+
 # a thing that looks like a mutator on the outside, but uses the fonttools varilb logic.
 # which is different from the mutator.py implementation.
-
 class VariationModelMutator(object):
     def __init__(self, items, axes, model=None):
         # items: list of locationdict, value tuples
@@ -127,17 +138,17 @@ def build(
         todo = [documentPath]
     results = []
     for path in todo:
-        reader = DesignSpaceProcessor(ufoVersion=outputUFOFormatVersion)
-        reader.useVarlib = useVarlib
-        reader.roundGeometry = roundGeometry
-        reader.read(path)
+        document = DesignSpaceProcessor(ufoVersion=outputUFOFormatVersion)
+        document.useVarlib = useVarlib
+        document.roundGeometry = roundGeometry
+        document.read(path)
         try:
-            r = reader.generateUFO(processRules=processRules)
+            r = document.generateUFO(processRules=processRules)
             results.append(r)
         except:
             if logger:
                 logger.exception("ufoProcessor error")
-        #results += reader.generateUFO(processRules=processRules)
+        #results += document.generateUFO(processRules=processRules)
         reader = None
     return results
 
@@ -299,7 +310,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         # option to execute the rules
         # make sure we're not trying to overwrite a newer UFO format
         self.loadFonts()
-        self.checkDefault()
+        self.findDefault()
+        if self.default is None:
+            # we need one to genenerate
+            raise UFOProcessorError("Can't generate UFO from this designspace: no default font.", self)
         v = 0
         for instanceDescriptor in self.instances:
             if instanceDescriptor.path is None:
@@ -316,6 +330,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     continue
             font.save(path, self.ufoVersion)
             self.problems.append("Generated %s as UFO%d"%(os.path.basename(path), self.ufoVersion))
+        return True
 
     def getSerializedAxes(self):
         return [a.serialize() for a in self.axes]
@@ -330,17 +345,18 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def getVariationModel(self, items, axes, bias=None):
         # wrapper for buildmutator so we can still switch
+        print("self.serializedAxes", self.serializedAxes)
         try:
             if self.useVarlib:
                 # use the varlib variation model
-                return Location(), VariationModelMutator(items, self.serializedAxes)
+                return dict(), VariationModelMutator(items, self.serializedAxes)
             else:
                 # use mutatormath model
                 return buildMutator(items, axes=self.getMutatorAxes(), bias=bias)
         except:
             error = traceback.format_exc()
-            print('xxx', error)
-            self.problems.append("getVariationModel error %s"%error)
+            self.problems.append("UFOProcessor.getVariationModel error: %s" % error)
+            return None
 
     def getInfoMutator(self):
         """ Returns a info mutator """
@@ -348,7 +364,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             return self._infoMutator
         infoItems = []
         for sourceDescriptor in self.sources:
-            loc = Location(sourceDescriptor.location)
+            loc = sourceDescriptor.location
             sourceFont = self.fonts[sourceDescriptor.name]
             infoItems.append((loc, self.mathInfoClass(sourceFont)))
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=self.defaultLoc)
@@ -360,7 +376,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             return self._kerningMutator
         kerningItems = []
         for sourceDescriptor in self.sources:
-            loc = Location(sourceDescriptor.location)
+            loc = sourceDescriptor.location
             sourceFont = self.fonts[sourceDescriptor.name]
             # this makes assumptions about the groups of all sources being the same. 
             kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
@@ -379,7 +395,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             else:
                 new.append((a,self.mathGlyphClass(b)))
         items = new
-        #items = [(a,self.mathGlyphClass(b)) for a, b, c in items]
         bias, thing = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
         self._glyphMutators[cacheKey] = thing
         return thing
@@ -392,7 +407,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         """
         items = []
         for sourceDescriptor in self.sources:
-            loc = Location(sourceDescriptor.location)
+            loc = sourceDescriptor.location
             f = self.fonts[sourceDescriptor.name]
             sourceLayer = f
             if glyphName in sourceDescriptor.mutedGlyphNames:
@@ -468,7 +483,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         """ Generate a font object for this instance """
         font = self._instantiateFont(None)
         # make fonty things here
-        loc = Location(instanceDescriptor.location)
+        #loc = Location(instanceDescriptor.location)
+        loc = instanceDescriptor.location
         # groups, 
         if hasattr(self.fonts[self.default.name], "kerningGroupConversionRenameMaps"):
             renameMap = self.fonts[self.default.name].kerningGroupConversionRenameMaps
@@ -535,6 +551,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 self.problems.append("Could not make mutator for glyph %s %s"%(glyphName, traceback.format_exc()))
                 continue
             if glyphName in instanceDescriptor.glyphs.keys():
+                # XXX this should be able to go now that we have full rule support. 
                 # reminder: this is what the glyphData can look like
                 # {'instanceLocation': {'custom': 0.0, 'weight': 824.0},
                 #  'masters': [{'font': 'master.Adobe VF Prototype.Master_0.0',
@@ -564,7 +581,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if glyphData.get('mute', False):
                 # mute this glyph, skip
                 continue
-            glyphInstanceLocation = Location(glyphData.get("instanceLocation", instanceDescriptor.location))
+            glyphInstanceLocation = glyphData.get("instanceLocation", instanceDescriptor.location)
             uniValues = []
             neutral = glyphMutator.get(())
             if neutral is not None:
@@ -586,7 +603,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                         sourceGlyph = m[sourceGlyphName].toMathGlyph()
                     else:
                         sourceGlyph = MathGlyph(m[sourceGlyphName])
-                    sourceGlyphLocation = Location(glyphMaster.get("location"))
+                    sourceGlyphLocation = glyphMaster.get("location")
                     items.append((sourceGlyphLocation, sourceGlyph))
                 bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
             try:
