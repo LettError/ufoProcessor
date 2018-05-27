@@ -6,6 +6,7 @@ from __future__ import print_function, division, absolute_import
 from ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
 from pprint import pprint
 import logging, traceback
+import collections
 
 """
     
@@ -30,13 +31,12 @@ from fontMath.mathGlyph import MathGlyph
 from fontMath.mathInfo import MathInfo
 from fontMath.mathKerning import MathKerning
 from mutatorMath.objects.mutator import buildMutator
-from mutatorMath.objects.location import biasFromLocations
 import plistlib
 import os
 
 from fontTools.designspaceLib import AxisDescriptor
 from fontTools.varLib.models import VariationModel, normalizeLocation
-
+from varModels import VariationModelMutator
 
 
 class UFOProcessorError(Exception):
@@ -48,41 +48,6 @@ class UFOProcessorError(Exception):
         return repr(self.msg) + repr(self.obj)
 
 
-# a thing that looks like a mutator on the outside, but uses the fonttools varilb logic.
-# which is different from the mutator.py implementation.
-class VariationModelMutator(object):
-    def __init__(self, items, axes, model=None):
-        # items: list of locationdict, value tuples
-        # axes: list of axis dictionaried, not axisdescriptor objects.
-        # model: a model, if we want to share one
-        #print("VariationModelMutator axes", axes)
-        self.axisOrder = [a['name'] for a in axes]
-        self.axes = {}
-        for a in axes:
-            self.axes[a['name']] = (a['minimum'], a['default'], a['maximum'])
-        if model is None:
-            self.model = VariationModel([self._normalize(a) for a,b in items], axisOrder=self.axisOrder)
-        else:
-            self.model = model
-        self.masters = [b for a, b in items]
-
-    def get(self, key):
-        if key in self.model.locations:
-            i = self.model.locations.index(key)
-            return self.masters[i]
-        return None
-
-    def getFactors(self, location):
-        nl = self._normalize(location)
-        return self.model.getScalars(nl)
-
-    def makeInstance(self, location):
-        # check for anisotropic locations here
-        nl = self._normalize(location)
-        return self.model.interpolateFromMasters(nl, self.masters)
-
-    def _normalize(self, location):
-        return normalizeLocation(location, self.axes)
 
 """
 
@@ -152,6 +117,7 @@ def build(
         reader = None
     return results
 
+
 def getUFOVersion(ufoPath):
     # <?xml version="1.0" encoding="UTF-8"?>
     # <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -166,6 +132,7 @@ def getUFOVersion(ufoPath):
     metaInfoPath = os.path.join(ufoPath, u"metainfo.plist")
     p = plistlib.readPlist(metaInfoPath)
     return p.get('formatVersion')
+
 
 def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________swap"):
     # In font swap the glyphs oldName and newName.
@@ -336,7 +303,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return [a.serialize() for a in self.axes]
 
     def getMutatorAxes(self):
-        d = {}
+        d = collections.OrderedDict()
+
         for a in self.axes:
             d[a.name] = a.serialize()
         return d
@@ -344,15 +312,15 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     serializedAxes = property(getSerializedAxes, doc="a list of dicts with the axis values")
 
     def getVariationModel(self, items, axes, bias=None):
-        # wrapper for buildmutator so we can still switch
-        print("self.serializedAxes", self.serializedAxes)
+        # Return either a mutatorMath or a varlib.model object for calculating. 
         try:
             if self.useVarlib:
                 # use the varlib variation model
                 return dict(), VariationModelMutator(items, self.serializedAxes)
             else:
                 # use mutatormath model
-                return buildMutator(items, axes=self.getMutatorAxes(), bias=bias)
+                axes = self.getMutatorAxes()
+                return buildMutator(items, axes=axes, bias=bias)
         except:
             error = traceback.format_exc()
             self.problems.append("UFOProcessor.getVariationModel error: %s" % error)
@@ -466,7 +434,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     names = names | set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
-                    self.problems.append("can't load master from %s"%(sourceDescriptor.path))
+                    self.problems.append("source ufo not found at %s"%(sourceDescriptor.path))
         self.glyphNames = list(names)
         self._fontsLoaded = True
 
@@ -483,12 +451,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         """ Generate a font object for this instance """
         font = self._instantiateFont(None)
         # make fonty things here
-        #loc = Location(instanceDescriptor.location)
         loc = instanceDescriptor.location
         # groups, 
         if hasattr(self.fonts[self.default.name], "kerningGroupConversionRenameMaps"):
             renameMap = self.fonts[self.default.name].kerningGroupConversionRenameMaps
-            #self.problems.append("renameMap %s"%renameMap)
         else:
             renameMap = {}
         font.kerningGroupConversionRenameMaps = renameMap
@@ -831,14 +797,16 @@ if __name__ == "__main__":
         a.tag = "pop*"
         a.map = [(500,250)]
         d.addAxis(a)
+
         s1 = SourceDescriptor()
         s1.path = m1
-        s1.location = dict(pop=a.minimum)
+        s1.location = dict(pop=a.default)
         s1.name = "test.master.1"
         s1.copyInfo = True
         s1.copyFeatures = True
         s1.copyLib = True
         d.addSource(s1)
+
         s2 = SourceDescriptor()
         s2.path = m2
         if makeSmallChange:
@@ -848,6 +816,9 @@ if __name__ == "__main__":
         s2.name = "test.master.2"
         #s2.copyInfo = True
         d.addSource(s2)
+
+        d.findDefault()
+        
         for counter in range(3):
             factor = counter / 2        
             i = InstanceDescriptor()
@@ -878,12 +849,10 @@ if __name__ == "__main__":
 
     def testSwap(docPath):
         srcPath, dstPath = makeSwapFonts(os.path.dirname(docPath))
-        
         f = Font(srcPath)
         swapGlyphNames(f, "narrow", "wide")
         f.info.styleName = "Swapped"
         f.save(dstPath)
-        
         # test the results in newly opened fonts
         old = Font(srcPath)
         new = Font(dstPath)
@@ -919,6 +888,7 @@ if __name__ == "__main__":
     selfTest = True
     if selfTest:
         for extension in ['varlib', 'mutator']:
+            print("\n\n", extension)
             USEVARLIBMODEL = extension == 'varlib'
             testRoot = os.path.join(os.getcwd(), "automatic_testfonts_%s"%extension)
             if os.path.exists(testRoot):

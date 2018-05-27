@@ -1,22 +1,22 @@
-from fontTools.designspaceLib import AxisDescriptor
+# -*- coding: utf-8 -*-
+from __future__ import print_function, division, absolute_import
 from fontTools.varLib.models import VariationModel, normalizeLocation
 
-# a thing that looks like a mutator on the outside, but uses the fonttools varilb logic.
-# which is different from the mutator.py implementation.
-
-class VarModelBender(object):
+# process the axis map values
+class AxisMapper(object):
     def __init__(self, axes):
         # axes: list of axis dictionaries, not axisdescriptor objects.
         self.axisOrder = [a['name'] for a in axes]
         self.axes = {}
         self.models = {}
         self.values = {}
-        for a in axes:
-            self.axes[a['name']] = (a['minimum'], a['default'], a['maximum'])
         self.models = {}
         for a in axes:
+            self.axes[a['name']] = (a['minimum'], a['default'], a['maximum'])
+        for a in axes:
             mapData = a.get('map', [])
-            self._makeWarpFromList(a['name'], mapData)
+            if mapData:
+                self._makeWarpFromList(a['name'], mapData)
 
     def _makeWarpFromList(self, axisName, mapData):
         # check for the extremes, add if necessary
@@ -25,6 +25,9 @@ class VarModelBender(object):
             mapData = [(minimum,minimum)] + mapData
         if not sum([a==maximum for a, b in mapData]):
             mapData.append((maximum,maximum))
+        if not (default, default) in mapData:
+            mapData.append((default, default))
+
         mapLocations = []
         mapValues = []
         for x, y in mapData:
@@ -49,21 +52,20 @@ class VarModelBender(object):
                 continue
             bLoc = nl[axisName]
             values = self.values[axisName]
-            #print('values', values)
-
             value = self.models[axisName].interpolateFromMasters(bLoc, values)
-            #print(value)
             new[axisName] = value
         return new
 
 
+# a thing that looks like a mutator on the outside, but uses the fonttools varilb logic.
+# which is different from the mutator.py implementation.
 class VariationModelMutator(object):
     def __init__(self, items, axes, model=None):
         # items: list of locationdict, value tuples
-        # axes: list of axis dictionaries, not axisdescriptor objects.
+        # axes: list of axis dictionaried, not axisdescriptor objects.
         # model: a model, if we want to share one
         self.axisOrder = [a['name'] for a in axes]
-        self.bender = VarModelBender(axes)
+        self.axisMapper = AxisMapper(axes)
         self.axes = {}
         for a in axes:
             self.axes[a['name']] = (a['minimum'], a['default'], a['maximum'])
@@ -77,7 +79,8 @@ class VariationModelMutator(object):
         if key in self.model.locations:
             i = self.model.locations.index(key)
             return self.masters[i]
-            
+        return None
+
     def getFactors(self, location):
         nl = self._normalize(location)
         return self.model.getScalars(nl)
@@ -85,63 +88,56 @@ class VariationModelMutator(object):
     def makeInstance(self, location, bend=False):
         # check for anisotropic locations here
         if bend:
-            location = self.bender(location)
-        location = self._normalize(location)
-        return self.model.interpolateFromMasters(location, self.masters)
+            location = self.axisMapper(location)
+        nl = self._normalize(location)
+        return self.model.interpolateFromMasters(nl, self.masters)
 
     def _normalize(self, location):
         return normalizeLocation(location, self.axes)
 
+
 if __name__ == "__main__":
+    from fontTools.designspaceLib import AxisDescriptor
     a = AxisDescriptor()
     a.name = "A"
     a.tag = "A___"
-    a.minimum = 0
+    a.minimum = -100
     a.default = 0
     a.maximum = 100
-    #a.map = ((a.minimum,a.minimum),(500, 250),(a.maximum,a.maximum))
-    a.map = [(50, 25), (60, 35)]
+    a.map = [(-50, 25), (50, 25), (60, 35)]
 
     b = AxisDescriptor()
     b.name = "B"
     b.tag = "B___"
-    b.minimum = -100
-    b.default = 10
-    b.maximum = 110
+    b.minimum = 0
+    b.default = 50
+    b.maximum = 100
     axes = [a.serialize(),b.serialize()]
-
+    
     items = [
         ({}, 0),
         #({'A': 50, 'B': 50}, 10),
         ({'A': 100}, 10),
         ({'B': 100}, 10),
-        ({'B': -100}, 0-10),
-        #({'A': 100, 'B': 100}, 0),
-        #({'A': 55, 'B': 75}, 1),
-        #({'A': 65, 'B': 99}, 1),
+        #({'B': -100}, -10),    # this will fail, no extrapolating
+        ({'A': 100, 'B': 100}, 0),
+        ({'A': 55, 'B': 75}, 1),
+        ({'A': 65, 'B': 99}, 1),
     ]
+
+    am = AxisMapper(axes)
+    assert am(dict(A=0)) == {'A': 0.0}
+    assert am(dict(A=50)) == {'A': 25.0}    # one of the steps
+    assert am(dict(A=55)) == {'A': 30.000000000000004}
+    assert am(dict(A=60)) == {'A': 35.0}
+    assert am(dict(A=80)) == {'A': 67.50000000000001}
+    assert am(dict(A=100)) == {'A': 100.0}
 
     mm = VariationModelMutator(items, axes)
 
-    print(mm.makeInstance(dict(A=0, B=0)))
-    print(mm.makeInstance(dict(A=100, B=0)))
-    print(mm.makeInstance(dict(A=0, B=100)))
-    print(mm.makeInstance(dict(A=100, B=100)))
-    print(1, mm.makeInstance(dict(A=50, B=0)))
-    print(2, mm.makeInstance(dict(A=50, B=0),bend=True))
-
-    # assert mm.makeInstance(dict(A=0, B=0)) == 0
-    # assert mm.makeInstance(dict(A=100, B=0)) == 10
-    # assert mm.makeInstance(dict(A=0, B=100)) == 10
-    # assert mm.makeInstance(dict(A=100, B=100)) == 0
-    # assert mm.makeInstance(dict(A=50, B=0),bend=False) == 5
-    # assert mm.makeInstance(dict(A=50, B=0),bend=True) == 2.5
-
-    # # do we support axismaps?
-    # vmb = VarModelBender(axes=axes)
-    # for v in range(0, 110, 10):
-    #     print(v, vmb(dict(A=v)))
-    # for v in range(0, 130, 10):
-    #     print(v, vmb(dict(B=v)))
-    # for v in range(0, 130, 10):
-    #     print(v, vmb(dict(A=v, B=v)))
+    assert mm.makeInstance(dict(A=0, B=0)) == 0
+    assert mm.makeInstance(dict(A=100, B=0)) == 10
+    assert mm.makeInstance(dict(A=0, B=100)) == 10
+    assert mm.makeInstance(dict(A=100, B=100)) == 0
+    assert mm.makeInstance(dict(A=50, B=0),bend=False) == 5
+    assert mm.makeInstance(dict(A=50, B=0),bend=True) == 2.5
