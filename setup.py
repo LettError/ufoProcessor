@@ -3,14 +3,16 @@
 from setuptools import setup
 
 setup(name = "ufoProcessor",
-      version = "0.3",
-      description = "Python object to read, write and generate designspace data.",
+      version = "1.0",
+      description = "Read, write and generate UFOs with designspace data.",
       author = "Erik van Blokland",
       author_email = "erik@letterror.com",
       url = "https://github.com/LettError/ufoProcessor",
+      keywords='font development tools',
       license = "MIT",
       packages = [
               "ufoProcessor",
       ],
       package_dir = {"":"Lib"},
+      python_requires='>=2.7',
 )

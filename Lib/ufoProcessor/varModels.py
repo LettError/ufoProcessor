@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
+
 from __future__ import print_function, division, absolute_import
 from fontTools.varLib.models import VariationModel, normalizeLocation
 
 # process the axis map values
 class AxisMapper(object):
     def __init__(self, axes):
-        # axes: list of axis dictionaries, not axisdescriptor objects.
+        # axes: list of axis axisdescriptors
         self.axisOrder = [a.name for a in axes]
         self.axes = {}
         self.models = {}
@@ -57,9 +58,11 @@ class AxisMapper(object):
         return new
 
 
-# a thing that looks like a mutator on the outside, but uses the fonttools varilb logic.
-# which is different from the mutator.py implementation.
 class VariationModelMutator(object):
+    """ a thing that looks like a mutator on the outside, but uses the fonttools varilb logic.
+        which is different from the mutator.py implementation.
+    """
+
     def __init__(self, items, axes, model=None):
         # items: list of locationdict, value tuples
         # axes: list of axis dictionaried, not axisdescriptor objects.
