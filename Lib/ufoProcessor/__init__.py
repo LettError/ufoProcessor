@@ -3,40 +3,29 @@
 
 from __future__ import print_function, division, absolute_import
 
-from ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
-from pprint import pprint
+import plistlib
+import os
 import logging, traceback
 import collections
+from pprint import pprint
 
-"""
-    
-    A subclassed DesignSpaceDocument that can
-        - process the document and generate finished UFOs with MutatorMath.
-        - read and write documents
-        - bypass and eventually replace the mutatormath ufo generator.
-
-"""
-
-
-# import from the local designSpaceLib until it is available in the RF fonttools
-#from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
-#from ufoProcessor.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
 from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+from fontTools.varLib.models import VariationModel, normalizeLocation
 
+from ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
+
+import defcon
 from defcon.objects.font import Font
 from defcon.pens.transformPointPen import TransformPointPen
 from defcon.objects.component import _defaultTransformation
-import defcon
 from fontMath.mathGlyph import MathGlyph
 from fontMath.mathInfo import MathInfo
 from fontMath.mathKerning import MathKerning
-from mutatorMath.objects.mutator import buildMutator
-import plistlib
-import os
 
-from fontTools.designspaceLib import AxisDescriptor
-from fontTools.varLib.models import VariationModel, normalizeLocation
-from varModels import VariationModelMutator
+# if you only intend to use varLib.model then importing mutatorMath is not necessary.
+from mutatorMath.objects.mutator import buildMutator
+
+from ufoProcessor.varModels import VariationModelMutator
 
 
 class UFOProcessorError(Exception):
@@ -48,9 +37,8 @@ class UFOProcessorError(Exception):
         return repr(self.msg) + repr(self.obj)
 
 
-
 """
-
+    Processing of rules when generating UFOs.
     Swap the contents of two glyphs.
         - contours
         - components
@@ -67,16 +55,19 @@ class UFOProcessorError(Exception):
 """
 
 
-""" These are some UFO specific tools for use with Mutator.
+""" 
+    These are some UFO specific tools for use with Mutator.
 
 
     build() is a convenience function for reading and executing a designspace file.
         documentPath:               filepath to the .designspace document
-        outputUFOFormatVersion:     ufo format for output
+        outputUFOFormatVersion:     ufo format for output, default is the current, so 3.
         verbose:                    True / False for lots or no feedback
         logPath:                    filepath to a log file
         progressFunc:               an optional callback to report progress.
                                     see mutatorMath.ufo.tokenProgressFunc
+        useVarlib:                  True if you want the geometry to be generated with varLib.model
+                                    instead of mutatorMath.
 
 """
 
@@ -119,16 +110,17 @@ def build(
 
 
 def getUFOVersion(ufoPath):
-    # <?xml version="1.0" encoding="UTF-8"?>
-    # <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-    # <plist version="1.0">
-    # <dict>
-    #   <key>creator</key>
-    #   <string>org.robofab.ufoLib</string>
-    #   <key>formatVersion</key>
-    #   <integer>2</integer>
-    # </dict>
-    # </plist>
+    # Peek into a ufo to read its format version. 
+            # <?xml version="1.0" encoding="UTF-8"?>
+            # <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            # <plist version="1.0">
+            # <dict>
+            #   <key>creator</key>
+            #   <string>org.robofab.ufoLib</string>
+            #   <key>formatVersion</key>
+            #   <integer>2</integer>
+            # </dict>
+            # </plist>
     metaInfoPath = os.path.join(ufoPath, u"metainfo.plist")
     p = plistlib.readPlist(metaInfoPath)
     return p.get('formatVersion')
@@ -234,9 +226,12 @@ class DecomposePointPen(object):
 
 class DesignSpaceProcessor(DesignSpaceDocument):
     """
-        builder of glyphs from designspaces
-        validate the data
-        if it works, make a generating thing
+        
+        A subclassed DesignSpaceDocument that can
+            - process the document and generate finished UFOs with MutatorMath or varLib.model.
+            - read and write documents
+            - Replacement for the mutatorMath.ufo generator.
+
     """
 
     fontClass = defcon.Font
@@ -475,6 +470,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 font.info.postScriptFontName = instanceDescriptor.postScriptFontName
                 font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
                 font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
+                # NEED SOME HELP WITH THIS
                 # localised names need to go to the right openTypeNameRecords
                 # records = []
                 # nameID = 1
