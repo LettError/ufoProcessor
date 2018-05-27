@@ -6,17 +6,17 @@ from fontTools.varLib.models import VariationModel, normalizeLocation
 class AxisMapper(object):
     def __init__(self, axes):
         # axes: list of axis dictionaries, not axisdescriptor objects.
-        self.axisOrder = [a['name'] for a in axes]
+        self.axisOrder = [a.name for a in axes]
         self.axes = {}
         self.models = {}
         self.values = {}
         self.models = {}
         for a in axes:
-            self.axes[a['name']] = (a['minimum'], a['default'], a['maximum'])
+            self.axes[a.name] = (a.minimum, a.default, a.maximum)
         for a in axes:
-            mapData = a.get('map', [])
+            mapData = a.map
             if mapData:
-                self._makeWarpFromList(a['name'], mapData)
+                self._makeWarpFromList(a.name, mapData)
 
     def _makeWarpFromList(self, axisName, mapData):
         # check for the extremes, add if necessary
@@ -64,11 +64,11 @@ class VariationModelMutator(object):
         # items: list of locationdict, value tuples
         # axes: list of axis dictionaried, not axisdescriptor objects.
         # model: a model, if we want to share one
-        self.axisOrder = [a['name'] for a in axes]
+        self.axisOrder = [a.name for a in axes]
         self.axisMapper = AxisMapper(axes)
         self.axes = {}
         for a in axes:
-            self.axes[a['name']] = (a['minimum'], a['default'], a['maximum'])
+            self.axes[a.name] = (a.minimum, a.default, a.maximum)
         if model is None:
             self.model = VariationModel([self._normalize(a) for a,b in items], axisOrder=self.axisOrder)
         else:
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     b.minimum = 0
     b.default = 50
     b.maximum = 100
-    axes = [a.serialize(),b.serialize()]
+    axes = [a,b]
     
     items = [
         ({}, 0),

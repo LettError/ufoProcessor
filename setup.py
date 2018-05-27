@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name = "ufoProcessor",
-      version = "0.2",
+      version = "0.3",
       description = "Python object to read, write and generate designspace data.",
       author = "Erik van Blokland",
       author_email = "erik@letterror.com",

@@ -56,19 +56,10 @@ class UFOProcessorError(Exception):
 
 
 """ 
-    These are some UFO specific tools for use with Mutator.
-
-
     build() is a convenience function for reading and executing a designspace file.
-        documentPath:               filepath to the .designspace document
-        outputUFOFormatVersion:     ufo format for output, default is the current, so 3.
-        verbose:                    True / False for lots or no feedback
-        logPath:                    filepath to a log file
-        progressFunc:               an optional callback to report progress.
-                                    see mutatorMath.ufo.tokenProgressFunc
-        useVarlib:                  True if you want the geometry to be generated with varLib.model
-                                    instead of mutatorMath.
-
+        documentPath: path to the designspace file.
+        outputUFOFormatVersion: integer, 2, 3. Format for generated UFOs. Note: can be different from source UFO format.
+        useVarlib: True if you want the geometry to be generated with varLib.model instead of mutatorMath.
 """
 
 def build(
@@ -224,14 +215,13 @@ class DecomposePointPen(object):
                 baseGlyph.drawPoints(transformPointPen)
 
 
+
 class DesignSpaceProcessor(DesignSpaceDocument):
     """
-        
         A subclassed DesignSpaceDocument that can
             - process the document and generate finished UFOs with MutatorMath or varLib.model.
             - read and write documents
             - Replacement for the mutatorMath.ufo generator.
-
     """
 
     fontClass = defcon.Font
@@ -288,7 +278,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if os.path.exists(path):
                 existingUFOFormatVersion = getUFOVersion(path)
                 if existingUFOFormatVersion > self.ufoVersion:
-                    self.problems.append(u"Can’t overwrite existing UFO%d with UFO%d."%(existingUFOFormatVersion, self.ufoVersion))
+                    self.problems.append(u"Can’t overwrite existing UFO%d with UFO%d." % (existingUFOFormatVersion, self.ufoVersion))
                     continue
             font.save(path, self.ufoVersion)
             self.problems.append("Generated %s as UFO%d"%(os.path.basename(path), self.ufoVersion))
@@ -311,11 +301,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         try:
             if self.useVarlib:
                 # use the varlib variation model
-                return dict(), VariationModelMutator(items, self.serializedAxes)
+                return dict(), VariationModelMutator(items, self.axes)
             else:
                 # use mutatormath model
-                axes = self.getMutatorAxes()
-                return buildMutator(items, axes=axes, bias=bias)
+                axesForMutator = self.getMutatorAxes()
+                return buildMutator(items, axes=axesForMutator, bias=bias)
         except:
             error = traceback.format_exc()
             self.problems.append("UFOProcessor.getVariationModel error: %s" % error)
@@ -425,11 +415,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if not sourceDescriptor.name in self.fonts:
                 if os.path.exists(sourceDescriptor.path):
                     self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
-                    self.problems.append("loaded master from %s, format %d"%(sourceDescriptor.path, getUFOVersion(sourceDescriptor.path)))
+                    self.problems.append("loaded master from %s, format %d" % (sourceDescriptor.path, getUFOVersion(sourceDescriptor.path)))
                     names = names | set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
-                    self.problems.append("source ufo not found at %s"%(sourceDescriptor.path))
+                    self.problems.append("source ufo not found at %s" % (sourceDescriptor.path))
         self.glyphNames = list(names)
         self._fontsLoaded = True
 
@@ -458,7 +448,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             try:
                 self.getKerningMutator().makeInstance(loc).extractKerning(font)
             except:
-                self.problems.append("Could not make kerning for %s. %s"%(loc, traceback.format_exc()))
+                self.problems.append("Could not make kerning for %s. %s" % (loc, traceback.format_exc()))
         # make the info
         if instanceDescriptor.info:
             try:
@@ -480,7 +470,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 #    records.append((nameID, ))
 
             except:
-                self.problems.append("Could not make fontinfo for %s. %s"%(loc, traceback.format_exc()))
+                self.problems.append("Could not make fontinfo for %s. %s" % (loc, traceback.format_exc()))
         # copied info 359
         for sourceDescriptor in self.sources:
             if sourceDescriptor.copyInfo:
@@ -510,7 +500,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 if glyphMutator is None:
                     continue
             except:
-                self.problems.append("Could not make mutator for glyph %s %s"%(glyphName, traceback.format_exc()))
+                self.problems.append("Could not make mutator for glyph %s %s" % (glyphName, traceback.format_exc()))
                 continue
             if glyphName in instanceDescriptor.glyphs.keys():
                 # XXX this should be able to go now that we have full rule support. 
@@ -572,7 +562,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 glyphInstanceObject = glyphMutator.makeInstance(glyphInstanceLocation)
             except IndexError:
                 # alignment problem with the data?
-                print("Error making instance %s"%glyphName)
+                print("Error making instance %s" % glyphName)
                 continue
             font.newGlyph(glyphName)
             font[glyphName].clear()
@@ -673,9 +663,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if copy:
                 value = getattr(sourceInfo, infoAttribute)
                 setattr(targetInfo, infoAttribute, value)
-
-
-
 
 
 if __name__ == "__main__":
@@ -782,7 +769,7 @@ if __name__ == "__main__":
             extension = "varlib"
         else:
             extension = "mutator"
-        testFontPath = os.path.join(os.getcwd(), "automatic_testfonts_%s"%extension)
+        testFontPath = os.path.join(os.getcwd(), "automatic_testfonts_%s" % extension)
         m1, m2, i1, i2, i3 = makeTestFonts(testFontPath)
         d = DesignSpaceProcessor(useVarlib=useVarlib)
         a = AxisDescriptor()
@@ -819,10 +806,10 @@ if __name__ == "__main__":
             factor = counter / 2        
             i = InstanceDescriptor()
             v = a.minimum+factor*(a.maximum-a.minimum)
-            i.path = i1%v
+            i.path = i1 % v
             i.familyName = "TestFamily"
-            i.styleName = "TestStyle_pop%3.3f"%(v)
-            i.name = "%s-%s"%(i.familyName, i.styleName)
+            i.styleName = "TestStyle_pop%3.3f" % (v)
+            i.name = "%s-%s" % (i.familyName, i.styleName)
             i.location = dict(pop=v)
             i.info = True
             i.kerning = True
@@ -879,14 +866,14 @@ if __name__ == "__main__":
                 else:
                     assert f['narrow'].unicodes == [207]
             else:
-                print("Missing test font at %s"%instance.path)
+                print("Missing test font at %s" % instance.path)
 
     selfTest = True
     if selfTest:
         for extension in ['varlib', 'mutator']:
             print("\n\n", extension)
             USEVARLIBMODEL = extension == 'varlib'
-            testRoot = os.path.join(os.getcwd(), "automatic_testfonts_%s"%extension)
+            testRoot = os.path.join(os.getcwd(), "automatic_testfonts_%s" % extension)
             if os.path.exists(testRoot):
                 shutil.rmtree(testRoot)
             docPath = os.path.join(testRoot, "automatic_test.designspace")

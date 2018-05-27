@@ -19,3 +19,8 @@ The easiest way to use ufoProcessor is to call `build(designspacePath)`
 * processRules: bool, when generating UFOs, execute designspace rules as swaps.
 * logger: optional logger object.
 
+* documentPath:               filepath to the .designspace document
+* outputUFOFormatVersion:     ufo format for output, default is the current, so 3.
+* useVarlib:                  True if you want the geometry to be generated with varLib.model instead of mutatorMath.
+
+
