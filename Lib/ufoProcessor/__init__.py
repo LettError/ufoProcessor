@@ -458,37 +458,31 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             except:
                 self.problems.append("Could not make kerning for %s. %s" % (loc, traceback.format_exc()))
         # make the info
-        if True:    #instanceDescriptor.info:
-            try:
-                infoMutator = self.getInfoMutator()
-                if not anisotropic:
-                    infoInstanceObject = infoMutator.makeInstance(loc)
-                else:
-                    horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal)
-                    verticalInfoInstanceObject = infoMutator.makeInstance(locVertical)
-                    # merge them again
-                    infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
-                infoInstanceObject.extractInfo(font.info)
-                #self.getInfoMutator().makeInstance(loc).extractInfo(font.info)
-                #info = self._infoMutator.makeInstance(loc)
-                #info.extractInfo(font.info)
-                font.info.familyName = instanceDescriptor.familyName
-                font.info.styleName = instanceDescriptor.styleName
-                font.info.postScriptFontName = instanceDescriptor.postScriptFontName
-                font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
-                font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
-                # NEED SOME HELP WITH THIS
-                # localised names need to go to the right openTypeNameRecords
-                # records = []
-                # nameID = 1
-                # platformID = 
-                # for languageCode, name in instanceDescriptor.localisedStyleMapFamilyName.items():
-                #    # Name ID 1 (font family name) is found at the generic styleMapFamily attribute.
-                #    records.append((nameID, ))
-
-            except:
-                self.problems.append("Could not make fontinfo for %s. %s" % (loc, traceback.format_exc()))
-        # copied info 359
+        try:
+            infoMutator = self.getInfoMutator()
+            if not anisotropic:
+                infoInstanceObject = infoMutator.makeInstance(loc)
+            else:
+                horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal)
+                verticalInfoInstanceObject = infoMutator.makeInstance(locVertical)
+                # merge them again
+                infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
+            infoInstanceObject.extractInfo(font.info)
+            font.info.familyName = instanceDescriptor.familyName
+            font.info.styleName = instanceDescriptor.styleName
+            font.info.postScriptFontName = instanceDescriptor.postScriptFontName
+            font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
+            font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
+            # NEED SOME HELP WITH THIS
+            # localised names need to go to the right openTypeNameRecords
+            # records = []
+            # nameID = 1
+            # platformID = 
+            # for languageCode, name in instanceDescriptor.localisedStyleMapFamilyName.items():
+            #    # Name ID 1 (font family name) is found at the generic styleMapFamily attribute.
+            #    records.append((nameID, ))
+        except:
+            self.problems.append("Could not make fontinfo for %s. %s" % (loc, traceback.format_exc()))
         for sourceDescriptor in self.sources:
             if sourceDescriptor.copyInfo:
                 # this is the source

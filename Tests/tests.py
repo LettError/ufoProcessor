@@ -86,17 +86,19 @@ def _makeTestFonts(rootPath):
 
     f1.groups["public.kern1.groupA"] = ['glyphOne', 'glyphTwo']
     f1.groups["public.kern2.groupB"] = ['glyphThree', 'glyphFour']
+    f2.groups.update(f1.groups)
+
+    f1.kerning[('public.kern1.groupA', 'public.kern2.groupB')] = -100
+    f2.kerning[('public.kern1.groupA', 'public.kern2.groupB')] = -200
+
     f1.kerning[('glyphOne', 'glyphOne')] = -100
     f2.kerning[('glyphOne', 'glyphOne')] = 0
-    f1.kerning[('public.kern1.groupA', 'public.kern2.groupB')] = -100
     f1.kerning[('glyphOne', 'glyphThree')] = 10
     f1.kerning[('glyphOne', 'glyphFour')] = 10
     # exception
-    f2.kerning[('public.kern1.groupA', 'public.kern2.groupB')] = -200
     f2.kerning[('glyphOne', 'glyphThree')] = 1
     f2.kerning[('glyphOne', 'glyphFour')] = 0
 
-    f2.groups.update(f1.groups)
 
     f1.save(path1, 3)
     f2.save(path2, 3)
