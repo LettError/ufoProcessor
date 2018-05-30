@@ -437,24 +437,41 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         font = self._instantiateFont(None)
         # make fonty things here
         loc = instanceDescriptor.location
-        # groups, 
+        anisotropic = False
+        locHorizontal = locVertical = loc
+        if self.isAnisotropic(loc):
+            anisotropic = True
+            locHorizontal, locVertical = self.splitAnisotropic(loc)
+        # groups
         if hasattr(self.fonts[self.default.name], "kerningGroupConversionRenameMaps"):
             renameMap = self.fonts[self.default.name].kerningGroupConversionRenameMaps
         else:
             renameMap = {}
         font.kerningGroupConversionRenameMaps = renameMap
         # make the kerning
+        # this kerning is always horizontal. We can take the horizontal location
         if instanceDescriptor.kerning:
             try:
-                self.getKerningMutator().makeInstance(loc).extractKerning(font)
+                kerningMutator = self.getKerningMutator()
+                kerningObject = kerningMutator.makeInstance(locHorizontal)
+                kerningObject.extractKerning(font)
             except:
                 self.problems.append("Could not make kerning for %s. %s" % (loc, traceback.format_exc()))
         # make the info
-        if instanceDescriptor.info:
+        if True:    #instanceDescriptor.info:
             try:
-                self.getInfoMutator().makeInstance(loc).extractInfo(font.info)
-                info = self._infoMutator.makeInstance(loc)
-                info.extractInfo(font.info)
+                infoMutator = self.getInfoMutator()
+                if not anisotropic:
+                    infoInstanceObject = infoMutator.makeInstance(loc)
+                else:
+                    horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal)
+                    verticalInfoInstanceObject = infoMutator.makeInstance(locVertical)
+                    # merge them again
+                    infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
+                infoInstanceObject.extractInfo(font.info)
+                #self.getInfoMutator().makeInstance(loc).extractInfo(font.info)
+                #info = self._infoMutator.makeInstance(loc)
+                #info.extractInfo(font.info)
                 font.info.familyName = instanceDescriptor.familyName
                 font.info.styleName = instanceDescriptor.styleName
                 font.info.postScriptFontName = instanceDescriptor.postScriptFontName
@@ -559,7 +576,15 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     items.append((sourceGlyphLocation, sourceGlyph))
                 bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
             try:
-                glyphInstanceObject = glyphMutator.makeInstance(glyphInstanceLocation)
+                if not self.isAnisotropic(glyphInstanceLocation):
+                    glyphInstanceObject = glyphMutator.makeInstance(glyphInstanceLocation)
+                else:
+                    # split anisotropic location into horizontal and vertical components
+                    horizontal, vertical = self.splitAnisotropic(glyphInstanceLocation)
+                    horizontalGlyphInstanceObject = glyphMutator.makeInstance(horizontal)
+                    verticalGlyphInstanceObject = glyphMutator.makeInstance(vertical)
+                    # merge them again
+                    glyphInstanceObject = (0,1)*horizontalGlyphInstanceObject + (1,0)*verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
                 print("Error making instance %s" % glyphName)
@@ -594,6 +619,23 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         # store designspace location in the font.lib
         font.lib['designspace'] = list(instanceDescriptor.location.items())
         return font
+
+    def isAnisotropic(self, location):
+        for v in location.values():
+            if type(v)==tuple:
+                return True
+        return False
+
+    def splitAnisotropic(self, location):
+        x = {}
+        y = {}
+        for dim, val in location.items():
+            if type(val)==tuple:
+                x[dim] = val[0]
+                y[dim] = val[1]
+            else:
+                x[dim] = y[dim] = val
+        return x, y
 
     def _instantiateFont(self, path):
         """ Return a instance of a font object with all the given subclasses"""
@@ -665,220 +707,3 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 setattr(targetInfo, infoAttribute, value)
 
 
-if __name__ == "__main__":
-    # standalone test
-    import shutil
-    import os
-    from defcon.objects.font import Font
-    import logging
-
-    def addGlyphs(font, s):
-        # we need to add the glyphs
-        step = 0
-        for n in ['glyphOne', 'glyphTwo', 'glyphThree', 'glyphFour']:
-            font.newGlyph(n)
-            g = font[n]
-            p = g.getPen()
-            p.moveTo((0,0))
-            p.lineTo((s,0))
-            p.lineTo((s,s))
-            p.lineTo((0,s))
-            p.closePath()
-            g.move((0,s+step))
-            g.width = s
-            step += 50
-        for n, w in [('wide', 800), ('narrow', 100)]:
-            font.newGlyph(n)
-            g = font[n]
-            p = g.getPen()
-            p.moveTo((0,0))
-            p.lineTo((w,0))
-            p.lineTo((w,font.info.ascender))
-            p.lineTo((0,font.info.ascender))
-            p.closePath()
-            g.width = w
-        font.newGlyph("wide.component")
-        g = font["wide.component"]
-        comp = g.instantiateComponent()
-        comp.baseGlyph = "wide"
-        comp.offset = (0,0)
-        g.appendComponent(comp)
-        g.width = font['wide'].width
-        font.newGlyph("narrow.component")
-        g = font["narrow.component"]
-        comp = g.instantiateComponent()
-        comp.baseGlyph = "narrow"
-        comp.offset = (0,0)
-        g.appendComponent(comp)
-        g.width = font['narrow'].width
-        uniValue = 200
-        for g in font:
-            g.unicode = uniValue
-            uniValue += 1
-
-    def fillInfo(font):
-        font.info.unitsPerEm = 1000
-        font.info.ascender = 800
-        font.info.descender = -200
-
-    def makeTestFonts(rootPath):
-        """ Make some test fonts that have the kerning problem."""
-        path1 = os.path.join(rootPath, "geometryMaster1.ufo")
-        path2 = os.path.join(rootPath, "geometryMaster2.ufo")
-        path3 = os.path.join(rootPath, "my_test_instance_dir_one", "geometryInstance%3.3f.ufo")
-        path4 = os.path.join(rootPath, "my_test_instance_dir_two", "geometryInstanceAnisotropic1.ufo")
-        path5 = os.path.join(rootPath, "my_test_instance_dir_two", "geometryInstanceAnisotropic2.ufo")
-        f1 = Font()
-        fillInfo(f1)
-        addGlyphs(f1, 100)
-        f1.features.text = u"# features text from master 1"
-        f2 = Font()
-        fillInfo(f2)
-        addGlyphs(f2, 500)
-        f2.features.text = u"# features text from master 2"
-        f1.info.ascender = 400
-        f1.info.descender = -200
-        f2.info.ascender = 600
-        f2.info.descender = -100
-        f1.info.copyright = u"This is the copyright notice from master 1"
-        f2.info.copyright = u"This is the copyright notice from master 2"
-        f1.lib['ufoProcessor.test.lib.entry'] = "Lib entry for master 1"
-        f2.lib['ufoProcessor.test.lib.entry'] = "Lib entry for master 2"
-        f1.save(path1, 3)
-        f2.save(path2, 3)
-        return path1, path2, path3, path4, path5
-
-    def makeSwapFonts(rootPath):
-        """ Make some test fonts that have the kerning problem."""
-        path1 = os.path.join(rootPath, "Swap.ufo")
-        path2 = os.path.join(rootPath, "Swapped.ufo")
-        f1 = Font()
-        fillInfo(f1)
-        addGlyphs(f1, 100)
-        f1.features.text = u"# features text from master 1"
-        f1.info.ascender = 800
-        f1.info.descender = -200
-        f1.kerning[('glyphOne', 'glyphOne')] = -10
-        f1.kerning[('glyphTwo', 'glyphTwo')] = 10
-        f1.save(path1, 2)
-        return path1, path2
-
-    def testDocument(docPath, makeSmallChange=False, useVarlib=True):
-        # make the test fonts and a test document
-        if useVarlib:
-            extension = "varlib"
-        else:
-            extension = "mutator"
-        testFontPath = os.path.join(os.getcwd(), "automatic_testfonts_%s" % extension)
-        m1, m2, i1, i2, i3 = makeTestFonts(testFontPath)
-        d = DesignSpaceProcessor(useVarlib=useVarlib)
-        a = AxisDescriptor()
-        a.name = "pop"
-        a.minimum = 0
-        a.maximum = 1000
-        a.default = 0
-        a.tag = "pop*"
-        a.map = [(500,250)]
-        d.addAxis(a)
-
-        s1 = SourceDescriptor()
-        s1.path = m1
-        s1.location = dict(pop=a.default)
-        s1.name = "test.master.1"
-        s1.copyInfo = True
-        s1.copyFeatures = True
-        s1.copyLib = True
-        d.addSource(s1)
-
-        s2 = SourceDescriptor()
-        s2.path = m2
-        if makeSmallChange:
-            s2.location = dict(pop=1500)
-        else:
-            s2.location = dict(pop=1000)
-        s2.name = "test.master.2"
-        #s2.copyInfo = True
-        d.addSource(s2)
-
-        d.findDefault()
-        
-        for counter in range(3):
-            factor = counter / 2        
-            i = InstanceDescriptor()
-            v = a.minimum+factor*(a.maximum-a.minimum)
-            i.path = i1 % v
-            i.familyName = "TestFamily"
-            i.styleName = "TestStyle_pop%3.3f" % (v)
-            i.name = "%s-%s" % (i.familyName, i.styleName)
-            i.location = dict(pop=v)
-            i.info = True
-            i.kerning = True
-            if counter == 2:
-                i.glyphs['glyphTwo'] = dict(name="glyphTwo", mute=True)
-                i.copyLib = True
-            if counter == 2:
-               i.glyphs['narrow'] = dict(instanceLocation=dict(pop=400), unicodes=[0x123, 0x124, 0x125])
-            d.addInstance(i)
-        d.write(docPath)
-
-    def testGenerateInstances(docPath, useVarlib=True):
-        # execute the test document
-        d = DesignSpaceProcessor(useVarlib=useVarlib)
-        d.read(docPath)
-        d.generateUFO()
-        if d.problems:
-            for p in d.problems:
-                print("\t",p)
-
-    def testSwap(docPath):
-        srcPath, dstPath = makeSwapFonts(os.path.dirname(docPath))
-        f = Font(srcPath)
-        swapGlyphNames(f, "narrow", "wide")
-        f.info.styleName = "Swapped"
-        f.save(dstPath)
-        # test the results in newly opened fonts
-        old = Font(srcPath)
-        new = Font(dstPath)
-        assert new.kerning.get(("narrow", "narrow")) == old.kerning.get(("wide","wide"))
-        assert new.kerning.get(("wide", "wide")) == old.kerning.get(("narrow","narrow"))
-        # after the swap these widths should be the same
-        assert old['narrow'].width == new['wide'].width
-        assert old['wide'].width == new['narrow'].width
-        # The following test may be a bit counterintuitive:
-        # the rule swaps the glyphs, but we do not want glyphs that are not
-        # specifically affected by the rule to *appear* any different.
-        # So, components have to be remapped. 
-        assert new['wide.component'].components[0].baseGlyph == "narrow"
-        assert new['narrow.component'].components[0].baseGlyph == "wide"
-
-    def testUnicodes(docPath, useVarlib=True):
-        # after executing testSwap there should be some test fonts
-        # let's check if the unicode values for glyph "narrow" arrive at the right place.
-        d = DesignSpaceProcessor(useVarlib=useVarlib)
-        d.read(docPath)
-        for instance in d.instances:
-            if os.path.exists(instance.path):
-                f = Font(instance.path)
-                print("instance.path", instance.path)
-                print("instance.name", instance.name, "f['narrow'].unicodes", f['narrow'].unicodes)
-                if instance.name == "TestFamily-TestStyle_pop1000.000":
-                    assert f['narrow'].unicodes == [291, 292, 293]
-                else:
-                    assert f['narrow'].unicodes == [207]
-            else:
-                print("Missing test font at %s" % instance.path)
-
-    selfTest = True
-    if selfTest:
-        for extension in ['varlib', 'mutator']:
-            print("\n\n", extension)
-            USEVARLIBMODEL = extension == 'varlib'
-            testRoot = os.path.join(os.getcwd(), "automatic_testfonts_%s" % extension)
-            if os.path.exists(testRoot):
-                shutil.rmtree(testRoot)
-            docPath = os.path.join(testRoot, "automatic_test.designspace")
-            testDocument(docPath, useVarlib=USEVARLIBMODEL)
-            testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL)
-            testSwap(docPath)
-            testDocument(docPath, makeSmallChange=False, useVarlib=USEVARLIBMODEL)
-            testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL)
