@@ -2,3 +2,5 @@ Lib/ufoProcessor/automatic_testfonts
 .pytest_cache
 Lib/ufoProcessor/automatic_testfonts_mutator
 Lib/ufoProcessor/automatic_testfonts_varlib
+Tests/automatic_testfonts_mutator
+Tests/automatic_testfonts_varlib
