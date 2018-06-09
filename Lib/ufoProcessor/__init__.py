@@ -9,7 +9,12 @@ import logging, traceback
 import collections
 from pprint import pprint
 
-from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+USELOCALDESIGNSPACELIB = True
+if USELOCALDESIGNSPACELIB:
+    from ufoProcessor.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+else:
+    from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+
 from fontTools.varLib.models import VariationModel, normalizeLocation
 
 from ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
@@ -357,6 +362,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             decomposeComponents = True causes the source glyphs to be decomposed first
             before building the mutator. That gives you instances that do not depend
             on a complete font. If you're calculating previews for instance.
+
+            XXX check glyphs in layers
         """
         items = []
         for sourceDescriptor in self.sources:
@@ -372,9 +379,16 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             # handle source layers
 
             if sourceDescriptor.layerName is not None:
+                # start looking for a layer
                 if sourceDescriptor.layerName in f.layers:
                     sourceLayer = f.layers[sourceDescriptor.layerName]
                     layerName = sourceDescriptor.layerName
+                    # start looking for a glyph
+                    if glyphName not in sourceLayer:
+                        # this might be a support in a sparse layer
+                        # so we're skipping!
+                        #print("XXXX", glyphName, "not in", sourceDescriptor.layerName)
+                        continue
             sourceGlyphObject = sourceLayer[glyphName]
             if decomposeComponents:
                 # what about decomposing glyphs in a partial font?

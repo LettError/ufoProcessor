@@ -13,7 +13,7 @@ from ufoProcessor import *
 def addGlyphs(font, s):
     # we need to add the glyphs
     step = 0
-    for n in ['glyphOne', 'glyphTwo', 'glyphThree', 'glyphFour']:
+    for n in ['glyphOne', 'glyphTwo', 'glyphThree', 'glyphFour', 'glyphFive']:
         font.newGlyph(n)
         g = font[n]
         p = g.getPen()
@@ -35,6 +35,21 @@ def addGlyphs(font, s):
         p.lineTo((0,font.info.ascender))
         p.closePath()
         g.width = w
+
+    #font.newGlyph('glyphFive')
+    font.newLayer('support')
+    layer = font.layers['support']
+    layer.newGlyph('glyphFive')
+    lg = layer['glyphFive']
+    p = lg.getPen()
+    w = 10
+    p.moveTo((0,0))
+    p.lineTo((s,0))
+    p.lineTo((s,100))
+    p.lineTo((0,100))
+    p.closePath()
+    lg.width = s
+
     font.newGlyph("wide.component")
     g = font["wide.component"]
     comp = g.instantiateComponent()
@@ -153,8 +168,17 @@ def _makeTestDocument(docPath, makeSmallChange=False, useVarlib=True):
     else:
         s2.location = dict(pop=1000)
     s2.name = "test.master.2"
-    #s2.copyInfo = True
     d.addSource(s2)
+
+    s3 = SourceDescriptor()
+    s3.path = m2
+    if makeSmallChange:
+        s3.location = dict(pop=500)
+    else:
+        s3.location = dict(pop=500)
+    s3.name = "test.master.support.1"
+    s3.layerName = "support"
+    d.addSource(s3)
 
     d.findDefault()
     
