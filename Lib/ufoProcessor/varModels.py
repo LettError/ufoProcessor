@@ -59,8 +59,8 @@ class AxisMapper(object):
 
 
 class VariationModelMutator(object):
-    """ a thing that looks like a mutator on the outside, but uses the fonttools varilb logic.
-        which is different from the mutator.py implementation.
+    """ a thing that looks like a mutator on the outside,
+        but uses the fonttools varlib logic to calculate.
     """
 
     def __init__(self, items, axes, model=None):
