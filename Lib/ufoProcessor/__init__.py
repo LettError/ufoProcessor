@@ -9,12 +9,7 @@ import logging, traceback
 import collections
 from pprint import pprint
 
-USELOCALDESIGNSPACELIB = True
-if USELOCALDESIGNSPACELIB:
-    from ufoProcessor.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
-else:
-    from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
-
+from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
 from fontTools.varLib.models import VariationModel, normalizeLocation
 
 from ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
@@ -29,7 +24,6 @@ from fontMath.mathKerning import MathKerning
 
 # if you only intend to use varLib.model then importing mutatorMath is not necessary.
 from mutatorMath.objects.mutator import buildMutator
-
 from ufoProcessor.varModels import VariationModelMutator
 
 
