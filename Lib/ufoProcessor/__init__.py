@@ -248,6 +248,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         self._glyphMutators = {}
         self._infoMutator = None
         self._kerningMutator = None
+        self._kerningMutatorPairs = None
         self.fonts = {}
         self._fontsLoaded = False
         self.glyphNames = []     # list of all glyphnames
@@ -256,7 +257,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         if readerClass is not None:
             print("ufoProcessor.ruleDescriptorClass", readerClass.ruleDescriptorClass)
 
-    def generateUFO(self, processRules=True):
+    def generateUFO(self, processRules=True, glyphNames=None, pairs=None):
         # makes the instances
         # option to execute the rules
         # make sure we're not trying to overwrite a newer UFO format
@@ -269,7 +270,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for instanceDescriptor in self.instances:
             if instanceDescriptor.path is None:
                 continue
-            font = self.makeInstance(instanceDescriptor, processRules)
+            font = self.makeInstance(instanceDescriptor, processRules, glyphNames=glyphNames, pairs=pairs)
             folder = os.path.dirname(instanceDescriptor.path)
             path = instanceDescriptor.path
             if not os.path.exists(folder):
@@ -322,16 +323,32 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=self.defaultLoc)
         return self._infoMutator
 
-    def getKerningMutator(self):
-        """ Return a kerning mutator, collect the sources, build mathGlyphs. """
-        if self._kerningMutator:
+    def getKerningMutator(self, pairs=None):
+        """ Return a kerning mutator, collect the sources, build mathGlyphs.
+            If no pairs are given: calculate the whole table.
+            If pairs are given then query the sources for a value and make a mutator only with those values. 
+        """
+        if self._kerningMutator and pairs == self._kerningMutatorPairs:
             return self._kerningMutator
         kerningItems = []
-        for sourceDescriptor in self.sources:
-            loc = sourceDescriptor.location
-            sourceFont = self.fonts[sourceDescriptor.name]
-            # this makes assumptions about the groups of all sources being the same. 
-            kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
+        if pairs is None:
+            for sourceDescriptor in self.sources:
+                loc = sourceDescriptor.location
+                sourceFont = self.fonts[sourceDescriptor.name]
+                # this makes assumptions about the groups of all sources being the same. 
+                kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
+        else:
+            self._kerningMutatorPairs = pairs
+            for sourceDescriptor in self.sources:
+                # XXX check sourceDescriptor layerName, only foreground should contribute
+                sourceFont = self.fonts[sourceDescriptor.name]
+                # XXX can we get the kern value from the fontparts kerning object?
+                kerningItem = self.mathKerningClass(sourceFont.kerning, sourceFont.groups)
+                sparseKerning = {}
+                for pair in pairs:
+                    sparseKerning[pair] = kerningItem[pair]
+                kerningItems.append((sourceDescriptor.location, self.mathKerningClass(sparseKerning)))
+
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=self.defaultLoc)
         return self._kerningMutator
 
@@ -440,7 +457,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 fonts.append((f, sourceDescriptor.location))
         return fonts
 
-    def makeInstance(self, instanceDescriptor, doRules=False, glyphNames=None):
+    def makeInstance(self, instanceDescriptor, doRules=False, glyphNames=None, pairs=None):
         """ Generate a font object for this instance """
         font = self._instantiateFont(None)
         # make fonty things here
@@ -458,9 +475,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         font.kerningGroupConversionRenameMaps = renameMap
         # make the kerning
         # this kerning is always horizontal. We can take the horizontal location
+        # filter the available pairs?
         if instanceDescriptor.kerning:
             try:
-                kerningMutator = self.getKerningMutator()
+                kerningMutator = self.getKerningMutator(pairs=pairs)
                 kerningObject = kerningMutator.makeInstance(locHorizontal)
                 kerningObject.extractKerning(font)
             except:
@@ -589,7 +607,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     glyphInstanceObject = (0,1)*horizontalGlyphInstanceObject + (1,0)*verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
-                print("Error making instance %s" % glyphName)
+                print("Error making instance for glyph \"%s\"" % glyphName)
                 continue
             font.newGlyph(glyphName)
             font[glyphName].clear()
