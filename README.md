@@ -1,8 +1,9 @@
 # ufoProcessor
-Python package based on the **designSpaceDocument** (now [fontTools.designspaceLib](https://github.com/fonttools/fonttools/tree/master/Lib/fontTools/designspaceLib)) specifically to process and generate UFO files.
+Python package based on the **designSpaceDocument** from [fontTools.designspaceLib](https://github.com/fonttools/fonttools/tree/master/Lib/fontTools/designspaceLib)) specifically to _process_ and _generate_ instances for UFO files, glyphs and other data.
 
 * Collect source materials
-* Provide mutators for specific glyphs, font info, kerning so that other tools can generate partial instances. Either from MutatorMath or fonttools varlib.model.
+* Provide mutators for specific glyphs, font info, kerning so that other tools can generate partial instances. Either from `MutatorMath` or `fonttools varlib.model`.
+* Support designspace format 4 with layers.
 * Apply avar-like designspace bending
 * Apply rules
 * Generate actual UFO instances in formats 2 and 3.
@@ -21,6 +22,4 @@ The easiest way to use ufoProcessor is to call `build(designspacePath)`
 
 * documentPath:               filepath to the .designspace document
 * outputUFOFormatVersion:     ufo format for output, default is the current, so 3.
-* useVarlib:                  True if you want the geometry to be generated with varLib.model instead of mutatorMath.
-
-
+* useVarlib:                  True if you want the geometry to be generated with `varLib.model` instead of `mutatorMath`.
