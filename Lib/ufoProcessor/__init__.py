@@ -25,6 +25,7 @@ from fontMath.mathKerning import MathKerning
 # if you only intend to use varLib.model then importing mutatorMath is not necessary.
 from mutatorMath.objects.mutator import buildMutator
 from ufoProcessor.varModels import VariationModelMutator
+from ufoProcessor.emptyPen import checkGlyphIsEmpty
 
 
 class UFOProcessorError(Exception):
@@ -111,7 +112,7 @@ def getUFOVersion(ufoPath):
             #   <integer>2</integer>
             # </dict>
             # </plist>
-    metaInfoPath = os.path.join(ufoPath, u"metainfo.plist")
+    metaInfoPath = os.path.join(ufoPath, "metainfo.plist")
     p = plistlib.readPlist(metaInfoPath)
     return p.get('formatVersion')
 
@@ -254,8 +255,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         self.glyphNames = []     # list of all glyphnames
         self.processRules = True
         self.problems = []  # receptacle for problem notifications. Not big enough to break, but also not small enough to ignore.
-        if readerClass is not None:
-            print("ufoProcessor.ruleDescriptorClass", readerClass.ruleDescriptorClass)
+        #if readerClass is not None:
+        #    print("ufoProcessor.ruleDescriptorClass", readerClass.ruleDescriptorClass)
 
     def generateUFO(self, processRules=True, glyphNames=None, pairs=None):
         # makes the instances
@@ -278,7 +279,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if os.path.exists(path):
                 existingUFOFormatVersion = getUFOVersion(path)
                 if existingUFOFormatVersion > self.ufoVersion:
-                    self.problems.append(u"Can’t overwrite existing UFO%d with UFO%d." % (existingUFOFormatVersion, self.ufoVersion))
+                    self.problems.append("Can’t overwrite existing UFO%d with UFO%d." % (existingUFOFormatVersion, self.ufoVersion))
                     continue
             font.save(path, self.ufoVersion)
             self.problems.append("Generated %s as UFO%d"%(os.path.basename(path), self.ufoVersion))
@@ -289,7 +290,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def getMutatorAxes(self):
         d = collections.OrderedDict()
-
         for a in self.axes:
             d[a.name] = a.serialize()
         return d
@@ -353,6 +353,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return self._kerningMutator
 
     def getGlyphMutator(self, glyphName, decomposeComponents=False, fromCache=True):
+        # make a mutator / varlib object for glyphName.
         cacheKey = (glyphName, decomposeComponents)
         if cacheKey in self._glyphMutators and fromCache:
             return self._glyphMutators[cacheKey]
@@ -391,6 +392,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
             if sourceDescriptor.layerName is not None:
                 # start looking for a layer
+                # Do not bother for mutatorMath designspaces 
                 if sourceDescriptor.layerName in f.layers:
                     sourceLayer = f.layers[sourceDescriptor.layerName]
                     layerName = sourceDescriptor.layerName
@@ -400,7 +402,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                         # so we're skipping!
                         #print("XXXX", glyphName, "not in", sourceDescriptor.layerName)
                         continue
+            # still have to check if the sourcelayer glyph is empty
             sourceGlyphObject = sourceLayer[glyphName]
+            if checkGlyphIsEmpty(sourceGlyphObject, allowWhiteSpace=True):
+                continue
             if decomposeComponents:
                 # what about decomposing glyphs in a partial font?
                 temp = self.glyphClass()
@@ -409,7 +414,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 sourceGlyphObject.drawPoints(dpp)
                 temp.width = sourceGlyphObject.width
                 temp.name = sourceGlyphObject.name
-                #temp.lib = sourceGlyphObject.lib
                 processThis = temp
             else:
                 processThis = sourceGlyphObject
@@ -519,10 +523,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     font.lib[key] = value
             if sourceDescriptor.copyFeatures:
                 featuresText = self.fonts[sourceDescriptor.name].features.text
-                if isinstance(featuresText, str):
-                    font.features.text = u""+featuresText
-                elif isinstance(featuresText, unicode):
-                    font.features.text = featuresText
+                font.features.text = featuresText
         # glyphs
         if glyphNames:
             selectedGlyphNames = glyphNames
@@ -582,7 +583,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             masters = glyphData.get("masters", None)
             if masters:
                 items = []
-                for glyphMaster in masters:
+                for glyphMastlyypher in masters:
                     sourceGlyphFont = glyphMaster.get("font")
                     sourceGlyphName = glyphMaster.get("glyphName", glyphName)
                     m = self.fonts.get(sourceGlyphFont)

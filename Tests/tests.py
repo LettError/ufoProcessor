@@ -10,7 +10,7 @@ from ufoProcessor import *
 # Run in regular python of choice, not ready for pytest just yet. 
 # You may ask "why not?" - you may ask indeed.
 
-def addGlyphs(font, s):
+def addGlyphs(font, s, addSupportLayer=True):
     # we need to add the glyphs
     step = 0
     for n in ['glyphOne', 'glyphTwo', 'glyphThree', 'glyphFour', 'glyphFive']:
@@ -36,19 +36,21 @@ def addGlyphs(font, s):
         p.closePath()
         g.width = w
 
-    #font.newGlyph('glyphFive')
-    font.newLayer('support')
-    layer = font.layers['support']
-    layer.newGlyph('glyphFive')
-    lg = layer['glyphFive']
-    p = lg.getPen()
-    w = 10
-    p.moveTo((0,0))
-    p.lineTo((s,0))
-    p.lineTo((s,100))
-    p.lineTo((0,100))
-    p.closePath()
-    lg.width = s
+    if addSupportLayer:
+        font.newLayer('support')
+        layer = font.layers['support']
+        layer.newGlyph('glyphFive')
+        layer.newGlyph('glyphOne')  # add an empty glyph to see how it is treated
+        lg = layer['glyphFive']
+        p = lg.getPen()
+        w = 10
+        y = -400
+        p.moveTo((0,y))
+        p.lineTo((s,y))
+        p.lineTo((s,y+100))
+        p.lineTo((0,y+100))
+        p.closePath()
+        lg.width = s
 
     font.newGlyph("wide.component")
     g = font["wide.component"]
@@ -84,11 +86,11 @@ def _makeTestFonts(rootPath):
     path5 = os.path.join(rootPath, "anisotropic_instances", "geometryInstanceAnisotropic2.ufo")
     f1 = Font()
     fillInfo(f1)
-    addGlyphs(f1, 100)
+    addGlyphs(f1, 100, addSupportLayer=False)
     f1.features.text = u"# features text from master 1"
     f2 = Font()
     fillInfo(f2)
-    addGlyphs(f2, 500)
+    addGlyphs(f2, 500, addSupportLayer=True)
     f2.features.text = u"# features text from master 2"
     f1.info.ascender = 400
     f1.info.descender = -200
@@ -113,7 +115,7 @@ def _makeTestFonts(rootPath):
     # exception
     f2.kerning[('glyphOne', 'glyphThree')] = 1
     f2.kerning[('glyphOne', 'glyphFour')] = 0
-
+    print([l.name for l in f1.layers], [l.name for l in f2.layers])
 
     f1.save(path1, 3)
     f2.save(path2, 3)
@@ -134,7 +136,7 @@ def _makeSwapFonts(rootPath):
     f1.save(path1, 2)
     return path1, path2
 
-def _makeTestDocument(docPath, makeSmallChange=False, useVarlib=True):
+def _makeTestDocument(docPath, useVarlib=True):
     # make the test fonts and a test document
     if useVarlib:
         extension = "varlib"
@@ -163,19 +165,13 @@ def _makeTestDocument(docPath, makeSmallChange=False, useVarlib=True):
 
     s2 = SourceDescriptor()
     s2.path = m2
-    if makeSmallChange:
-        s2.location = dict(pop=1500)
-    else:
-        s2.location = dict(pop=1000)
+    s2.location = dict(pop=1000)
     s2.name = "test.master.2"
     d.addSource(s2)
 
     s3 = SourceDescriptor()
     s3.path = m2
-    if makeSmallChange:
-        s3.location = dict(pop=500)
-    else:
-        s3.location = dict(pop=500)
+    s3.location = dict(pop=500)
     s3.name = "test.master.support.1"
     s3.layerName = "support"
     d.addSource(s3)
@@ -222,6 +218,9 @@ def _makeTestDocument(docPath, makeSmallChange=False, useVarlib=True):
     i.info = True
     i.kerning = True
     d.addInstance(i)
+
+    # add data to the document lib
+    d.lib['ufoprocessor.testdata'] = dict(width=500, weight=500, name="This is a named location, stored in the document lib.")
 
     d.write(docPath)
 
@@ -284,5 +283,5 @@ if selfTest:
         _makeTestDocument(docPath, useVarlib=USEVARLIBMODEL)
         _testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL)
         testSwap(docPath)
-        _makeTestDocument(docPath, makeSmallChange=False, useVarlib=USEVARLIBMODEL)
+        _makeTestDocument(docPath, useVarlib=USEVARLIBMODEL)
         _testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL)
