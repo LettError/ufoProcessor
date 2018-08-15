@@ -580,10 +580,12 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             note = glyphData.get("note")
             if note:
                 font[glyphName] = note
+            # XXXX phase out support for instance-specific masters
+            # this should be handled by the rules system.
             masters = glyphData.get("masters", None)
             if masters:
                 items = []
-                for glyphMastlyypher in masters:
+                for glyphMaster in masters:
                     sourceGlyphFont = glyphMaster.get("font")
                     sourceGlyphName = glyphMaster.get("glyphName", glyphName)
                     m = self.fonts.get(sourceGlyphFont)
