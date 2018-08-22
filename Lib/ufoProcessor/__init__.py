@@ -24,6 +24,7 @@ from fontMath.mathKerning import MathKerning
 
 # if you only intend to use varLib.model then importing mutatorMath is not necessary.
 from mutatorMath.objects.mutator import buildMutator
+from mutatorMath.objects.location import Location
 from ufoProcessor.varModels import VariationModelMutator
 from ufoProcessor.emptyPen import checkGlyphIsEmpty
 
@@ -48,14 +49,14 @@ class UFOProcessorError(Exception):
 
     + Remap components so that glyphs that reference either of the swapped glyphs maintain appearance
     + Keep the unicode value of the original glyph.
-    
+
     Notes
     Parking the glyphs under a swapname is a bit lazy, but at least it guarantees the glyphs have the right parent.
 
 """
 
 
-""" 
+"""
     build() is a convenience function for reading and executing a designspace file.
         documentPath: path to the designspace file.
         outputUFOFormatVersion: integer, 2, 3. Format for generated UFOs. Note: can be different from source UFO format.
@@ -81,7 +82,7 @@ def build(
         # process all *.designspace documents in this folder
         todo = glob.glob(os.path.join(documentPath, "*.designspace"))
     else:
-        # process the 
+        # process the
         todo = [documentPath]
     results = []
     for path in todo:
@@ -101,7 +102,7 @@ def build(
 
 
 def getUFOVersion(ufoPath):
-    # Peek into a ufo to read its format version. 
+    # Peek into a ufo to read its format version.
             # <?xml version="1.0" encoding="UTF-8"?>
             # <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
             # <plist version="1.0">
@@ -120,11 +121,11 @@ def getUFOVersion(ufoPath):
 def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________swap"):
     # In font swap the glyphs oldName and newName.
     # Also swap the names in components in order to preserve appearance.
-    # Also swap the names in font groups. 
+    # Also swap the names in font groups.
     if not oldName in font or not newName in font:
         return None
     swapName = oldName + swapNameExtension
-    # park the old glyph 
+    # park the old glyph
     if not swapName in font:
         font.newGlyph(swapName)
     # swap the outlines
@@ -137,12 +138,12 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
     p = font[oldName].getPointPen()
     font[newName].drawPoints(p)
     font[oldName].width = font[newName].width
-    
+
     font[newName].clear()
     p = font[newName].getPointPen()
     font[swapName].drawPoints(p)
     font[newName].width = font[swapName].width
-    
+
     # remap the components
     for g in font:
         for c in g.components:
@@ -158,7 +159,7 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
         for c in g.components:
            if c.baseGlyph == swapName:
                c.baseGlyph = newName
-   
+
     # change the names in groups
     # the shapes will swap, that will invalidate the kerning
     # so the names need to swap in the kerning as well.
@@ -176,7 +177,7 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
         newKerning[(first, second)] = value
     font.kerning.clear()
     font.kerning.update(newKerning)
-            
+
     for groupName, members in font.groups.items():
         newMembers = []
         for name in members:
@@ -187,7 +188,7 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
             else:
                 newMembers.append(name)
         font.groups[groupName] = newMembers
-    
+
     remove = []
     for g in font:
         if g.name.find(swapNameExtension)!=-1:
@@ -197,14 +198,14 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
 
 
 class DecomposePointPen(object):
-    
+
     def __init__(self, glyphSet, outPointPen):
         self._glyphSet = glyphSet
         self._outPointPen = outPointPen
         self.beginPath = outPointPen.beginPath
         self.endPath = outPointPen.endPath
         self.addPoint = outPointPen.addPoint
-        
+
     def addComponent(self, baseGlyphName, transformation):
         if baseGlyphName in self._glyphSet:
             baseGlyph = self._glyphSet[baseGlyphName]
@@ -225,6 +226,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     """
 
     fontClass = defcon.Font
+    layerClass= defcon.Layer
     glyphClass = defcon.Glyph
     libClass = defcon.Lib
     glyphContourClass = defcon.Contour
@@ -297,7 +299,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     serializedAxes = property(getSerializedAxes, doc="a list of dicts with the axis values")
 
     def getVariationModel(self, items, axes, bias=None):
-        # Return either a mutatorMath or a varlib.model object for calculating. 
+        # Return either a mutatorMath or a varlib.model object for calculating.
         try:
             if self.useVarlib:
                 # use the varlib variation model
@@ -326,7 +328,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     def getKerningMutator(self, pairs=None):
         """ Return a kerning mutator, collect the sources, build mathGlyphs.
             If no pairs are given: calculate the whole table.
-            If pairs are given then query the sources for a value and make a mutator only with those values. 
+            If pairs are given then query the sources for a value and make a mutator only with those values.
         """
         if self._kerningMutator and pairs == self._kerningMutatorPairs:
             return self._kerningMutator
@@ -335,7 +337,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             for sourceDescriptor in self.sources:
                 loc = sourceDescriptor.location
                 sourceFont = self.fonts[sourceDescriptor.name]
-                # this makes assumptions about the groups of all sources being the same. 
+                # this makes assumptions about the groups of all sources being the same.
                 kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
         else:
             self._kerningMutatorPairs = pairs
@@ -392,7 +394,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
             if sourceDescriptor.layerName is not None:
                 # start looking for a layer
-                # Do not bother for mutatorMath designspaces 
+                # Do not bother for mutatorMath designspaces
                 if sourceDescriptor.layerName in f.layers:
                     sourceLayer = f.layers[sourceDescriptor.layerName]
                     layerName = sourceDescriptor.layerName
@@ -422,7 +424,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 processThis = processThis.toMathGlyph()
             else:
                 processThis = self.mathGlyphClass(processThis)
-            items.append((loc, processThis, sourceInfo))
+            items.append((Location(loc), processThis, sourceInfo))
         return items
 
     def getNeutralFont(self):
@@ -507,7 +509,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             # localised names need to go to the right openTypeNameRecords
             # records = []
             # nameID = 1
-            # platformID = 
+            # platformID =
             # for languageCode, name in instanceDescriptor.localisedStyleMapFamilyName.items():
             #    # Name ID 1 (font family name) is found at the generic styleMapFamily attribute.
             #    records.append((nameID, ))
@@ -541,7 +543,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 self.problems.append("Could not make mutator for glyph %s %s" % (glyphName, traceback.format_exc()))
                 continue
             if glyphName in instanceDescriptor.glyphs.keys():
-                # XXX this should be able to go now that we have full rule support. 
+                # XXX this should be able to go now that we have full rule support.
                 # reminder: this is what the glyphData can look like
                 # {'instanceLocation': {'custom': 0.0, 'weight': 824.0},
                 #  'masters': [{'font': 'master.Adobe VF Prototype.Master_0.0',
@@ -664,6 +666,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         """ Return a instance of a font object with all the given subclasses"""
         try:
             return self.fontClass(path,
+                layerClass=self.layerClass,
                 libClass=self.libClass,
                 kerningClass=self.kerningClass,
                 groupsClass=self.groupsClass,
