@@ -319,7 +319,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for sourceDescriptor in self.sources:
             loc = sourceDescriptor.location
             sourceFont = self.fonts[sourceDescriptor.name]
-            infoItems.append((loc, self.mathInfoClass(sourceFont)))
+            #print("getInfoMutator XXX")
+            if hasattr(sourceFont.info, "toMathInfo"):
+                infoItems.append((loc, sourceFont.info.toMathInfo()))
+            else:
+                infoItems.append((loc, self.mathInfoClass(sourceFont)))
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=self.defaultLoc)
         return self._infoMutator
 
@@ -342,12 +346,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             for sourceDescriptor in self.sources:
                 # XXX check sourceDescriptor layerName, only foreground should contribute
                 sourceFont = self.fonts[sourceDescriptor.name]
+                loc = sourceDescriptor.location
                 # XXX can we get the kern value from the fontparts kerning object?
                 kerningItem = self.mathKerningClass(sourceFont.kerning, sourceFont.groups)
                 sparseKerning = {}
                 for pair in pairs:
                     sparseKerning[pair] = kerningItem[pair]
-                kerningItems.append((sourceDescriptor.location, self.mathKerningClass(sparseKerning)))
+                kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
 
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=self.defaultLoc)
         return self._kerningMutator
@@ -361,6 +366,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         new = []
         for a, b, c in items:
             if hasattr(b, "toMathGlyph"):
+                # note: calling toMathGlyph ignores the mathGlyphClass preference
+                # maybe the self.mathGlyphClass is not necessary?
                 new.append((a,b.toMathGlyph()))
             else:
                 new.append((a,self.mathGlyphClass(b)))
@@ -432,6 +439,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for sd in self.sources:
             if sd.location == neutralLoc:
                 if sd.name in self.fonts:
+                    candidate = self.fonts[sd.name]
+                    #if sd.layerName:
+                    #    if sd.layerName in candidate.layers:
                     return self.fonts[sd.name]
         return None
 
@@ -441,7 +451,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             return
         names = set()
         for sourceDescriptor in self.sources:
-            if not sourceDescriptor.name in self.fonts:
+            if sourceDescriptor.name not in self.fonts:
                 if os.path.exists(sourceDescriptor.path):
                     self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
                     self.problems.append("loaded master from %s, format %d" % (sourceDescriptor.path, getUFOVersion(sourceDescriptor.path)))
@@ -480,7 +490,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         # make the kerning
         # this kerning is always horizontal. We can take the horizontal location
         # filter the available pairs?
-        if instanceDescriptor.kerning:
+        if instanceDescriptor.kerning and pairs:
             try:
                 kerningMutator = self.getKerningMutator(pairs=pairs)
                 kerningObject = kerningMutator.makeInstance(locHorizontal)
