@@ -226,7 +226,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     """
 
     fontClass = defcon.Font
-    layerClass= defcon.Layer
+    layerClass = defcon.Layer
     glyphClass = defcon.Glyph
     libClass = defcon.Lib
     glyphContourClass = defcon.Contour
@@ -310,6 +310,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 return buildMutator(items, axes=axesForMutator, bias=bias)
         except:
             error = traceback.format_exc()
+            print(error)
             self.problems.append("UFOProcessor.getVariationModel error: %s" % error)
             return None
 
@@ -319,7 +320,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             return self._infoMutator
         infoItems = []
         for sourceDescriptor in self.sources:
-            loc = sourceDescriptor.location
+            loc = Location(sourceDescriptor.location)
             sourceFont = self.fonts[sourceDescriptor.name]
             #print("getInfoMutator XXX")
             if hasattr(sourceFont.info, "toMathInfo"):
@@ -339,7 +340,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         kerningItems = []
         if pairs is None:
             for sourceDescriptor in self.sources:
-                loc = sourceDescriptor.location
+                loc = Location(sourceDescriptor.location)
                 sourceFont = self.fonts[sourceDescriptor.name]
                 # this makes assumptions about the groups of all sources being the same.
                 kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
@@ -348,7 +349,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             for sourceDescriptor in self.sources:
                 # XXX check sourceDescriptor layerName, only foreground should contribute
                 sourceFont = self.fonts[sourceDescriptor.name]
-                loc = sourceDescriptor.location
+                loc = Location(sourceDescriptor.location)
                 # XXX can we get the kern value from the fontparts kerning object?
                 kerningItem = self.mathKerningClass(sourceFont.kerning, sourceFont.groups)
                 sparseKerning = {}
@@ -388,7 +389,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         """
         items = []
         for sourceDescriptor in self.sources:
-            loc = sourceDescriptor.location
+            loc = Location(sourceDescriptor.location)
             f = self.fonts[sourceDescriptor.name]
             sourceLayer = f
             if glyphName in sourceDescriptor.mutedGlyphNames:
@@ -431,7 +432,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 processThis = processThis.toMathGlyph()
             else:
                 processThis = self.mathGlyphClass(processThis)
-            items.append((Location(loc), processThis, sourceInfo))
+            items.append((loc, processThis, sourceInfo))
         return items
 
     def getNeutralFont(self):
@@ -477,7 +478,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         """ Generate a font object for this instance """
         font = self._instantiateFont(None)
         # make fonty things here
-        loc = instanceDescriptor.location
+        loc = Location(instanceDescriptor.location)
         anisotropic = False
         locHorizontal = locVertical = loc
         if self.isAnisotropic(loc):
@@ -595,7 +596,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             # XXXX phase out support for instance-specific masters
             # this should be handled by the rules system.
             masters = glyphData.get("masters", None)
-            if masters:
+            if masters is not None:
                 items = []
                 for glyphMaster in masters:
                     sourceGlyphFont = glyphMaster.get("font")
@@ -608,7 +609,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     else:
                         sourceGlyph = MathGlyph(m[sourceGlyphName])
                     sourceGlyphLocation = glyphMaster.get("location")
-                    items.append((sourceGlyphLocation, sourceGlyph))
+                    items.append((Location(sourceGlyphLocation), sourceGlyph))
                 bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
             try:
                 if not self.isAnisotropic(glyphInstanceLocation):
