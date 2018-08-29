@@ -322,6 +322,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for sourceDescriptor in self.sources:
             loc = Location(sourceDescriptor.location)
             sourceFont = self.fonts[sourceDescriptor.name]
+            if sourceFont is None:
+                continue
             #print("getInfoMutator XXX")
             if hasattr(sourceFont.info, "toMathInfo"):
                 infoItems.append((loc, sourceFont.info.toMathInfo()))
@@ -342,13 +344,18 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             for sourceDescriptor in self.sources:
                 loc = Location(sourceDescriptor.location)
                 sourceFont = self.fonts[sourceDescriptor.name]
+                if sourceFont is None: continue
                 # this makes assumptions about the groups of all sources being the same.
                 kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
         else:
             self._kerningMutatorPairs = pairs
             for sourceDescriptor in self.sources:
                 # XXX check sourceDescriptor layerName, only foreground should contribute
+                if not os.path.exists(sourceDescriptor.path):
+                    continue
                 sourceFont = self.fonts[sourceDescriptor.name]
+                if sourceFont is None:
+                    continue
                 loc = Location(sourceDescriptor.location)
                 # XXX can we get the kern value from the fontparts kerning object?
                 kerningItem = self.mathKerningClass(sourceFont.kerning, sourceFont.groups)
@@ -389,8 +396,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         """
         items = []
         for sourceDescriptor in self.sources:
+            if not os.path.exists(sourceDescriptor.path):
+                continue
             loc = Location(sourceDescriptor.location)
             f = self.fonts[sourceDescriptor.name]
+            if f is None: continue
             sourceLayer = f
             if glyphName in sourceDescriptor.mutedGlyphNames:
                 continue
@@ -442,7 +452,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for sd in self.sources:
             if sd.location == neutralLoc:
                 if sd.name in self.fonts:
-                    candidate = self.fonts[sd.name]
+                    #candidate = self.fonts[sd.name]
                     #if sd.layerName:
                     #    if sd.layerName in candidate.layers:
                     return self.fonts[sd.name]
@@ -529,14 +539,17 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for sourceDescriptor in self.sources:
             if sourceDescriptor.copyInfo:
                 # this is the source
-                self._copyFontInfo(self.fonts[sourceDescriptor.name].info, font.info)
+                if self.fonts[sourceDescriptor.name] is not None:
+                    self._copyFontInfo(self.fonts[sourceDescriptor.name].info, font.info)
             if sourceDescriptor.copyLib:
                 # excplicitly copy the font.lib items
-                for key, value in self.fonts[sourceDescriptor.name].lib.items():
-                    font.lib[key] = value
+                if self.fonts[sourceDescriptor.name] is not None:
+                    for key, value in self.fonts[sourceDescriptor.name].lib.items():
+                        font.lib[key] = value
             if sourceDescriptor.copyFeatures:
-                featuresText = self.fonts[sourceDescriptor.name].features.text
-                font.features.text = featuresText
+                if self.fonts[sourceDescriptor.name] is not None:
+                    featuresText = self.fonts[sourceDescriptor.name].features.text
+                    font.features.text = featuresText
         # glyphs
         if glyphNames:
             selectedGlyphNames = glyphNames

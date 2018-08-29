@@ -176,6 +176,12 @@ def _makeTestDocument(docPath, useVarlib=True):
     s3.layerName = "support"
     d.addSource(s3)
 
+    s4 = SourceDescriptor()
+    s4.path = "missing.ufo"
+    s4.location = dict(pop=600)
+    s4.name = "test.missing.master"
+    d.addSource(s4)
+
     d.findDefault()
     
     for counter in range(3):
