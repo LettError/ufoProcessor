@@ -1,7 +1,8 @@
 # standalone test
 import shutil
 import os
-from defcon.objects.font import Font
+import defcon.objects.font
+import fontParts.fontshell.font
 import logging
 from ufoProcessor import *
 
@@ -9,6 +10,19 @@ from ufoProcessor import *
 # new place for ufoProcessor tests.
 # Run in regular python of choice, not ready for pytest just yet. 
 # You may ask "why not?" - you may ask indeed.
+
+# make the tests work with defcon as well as fontparts
+
+def addExtraGlyph(font, name, s=200):
+    font.newGlyph(name)
+    g = font[name]
+    p = g.getPen()
+    p.moveTo((0,0))
+    p.lineTo((s,0))
+    p.lineTo((s,s))
+    p.lineTo((0,s))
+    p.closePath()
+    g.width = s
 
 def addGlyphs(font, s, addSupportLayer=True):
     # we need to add the glyphs
@@ -87,6 +101,7 @@ def _makeTestFonts(rootPath):
     f1 = Font()
     fillInfo(f1)
     addGlyphs(f1, 100, addSupportLayer=False)
+    addExtraGlyph(f1, "extra.glyph.for.neutral")
     f1.features.text = u"# features text from master 1"
     f2 = Font()
     fillInfo(f2)
@@ -136,15 +151,28 @@ def _makeSwapFonts(rootPath):
     f1.save(path1, 2)
     return path1, path2
 
-def _makeTestDocument(docPath, useVarlib=True):
+class DesignSpaceProcessor_using_defcon(DesignSpaceProcessor):
+    def _instantiateFont(self, path):
+        return defcon.objects.font.Font(path)
+
+class DesignSpaceProcessor_using_fontparts(DesignSpaceProcessor):
+    def _instantiateFont(self, path):
+        return fontParts.fontshell.font.RFont(path)
+
+def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
     # make the test fonts and a test document
     if useVarlib:
         extension = "varlib"
     else:
         extension = "mutator"
-    testFontPath = os.path.join(os.getcwd(), "automatic_testfonts_%s" % extension)
+    testFontPath = os.path.join(os.path.dirname(docPath), "automatic_testfonts_%s" % extension)
+    print("\ttestFontPath:", testFontPath)
     m1, m2, i1, anisotropicInstancePath1, anisotropicInstancePath2 = _makeTestFonts(testFontPath)
-    d = DesignSpaceProcessor(useVarlib=useVarlib)
+    if useDefcon:
+        d = DesignSpaceProcessor_using_defcon(useVarlib=useVarlib)
+    else:
+        d = DesignSpaceProcessor_using_fontparts(useVarlib=useVarlib)
+    print("\td", d, type(d))
     a = AxisDescriptor()
     a.name = "pop"
     a.minimum = 0
@@ -181,6 +209,13 @@ def _makeTestDocument(docPath, useVarlib=True):
     s4.location = dict(pop=600)
     s4.name = "test.missing.master"
     d.addSource(s4)
+
+    s5 = SourceDescriptor()
+    s5.path = m2
+    s5.location = dict(pop=620)
+    s5.name = "test.existing.ufo_missing.layer"
+    s5.layerName = "missing.layer"
+    d.addSource(s5)
 
     d.findDefault()
     
@@ -226,16 +261,23 @@ def _makeTestDocument(docPath, useVarlib=True):
     d.addInstance(i)
 
     # add data to the document lib
-    d.lib['ufoprocessor.testdata'] = dict(width=500, weight=500, name="This is a named location, stored in the document lib.")
+    d.lib['ufoprocessor.testdata'] = dict(pop=500, name="This is a named location, stored in the document lib.")
 
     d.write(docPath)
 
-def _testGenerateInstances(docPath, useVarlib=True):
+def _testGenerateInstances(docPath, useVarlib=True, useDefcon=True):
     # execute the test document
-    d = DesignSpaceProcessor(useVarlib=useVarlib)
+    if useDefcon:
+        d = DesignSpaceProcessor_using_defcon(useVarlib=useVarlib)
+    else:
+        d = DesignSpaceProcessor_using_fontparts(useVarlib=useVarlib)
     d.read(docPath)
+    d.loadFonts()
+    objectFlavor = [type(f).__name__ for f in d.fonts.values()][0]
+    print("objectFlavor", objectFlavor)
     d.generateUFO()
     if d.problems:
+        print("log:")
         for p in d.problems:
             print("\t",p)
 
@@ -279,15 +321,26 @@ def testUnicodes(docPath, useVarlib=True):
 
 selfTest = True
 if selfTest:
-    for extension in ['varlib', 'mutator']:
-        print("\n\n", extension)
-        USEVARLIBMODEL = extension == 'varlib'
-        testRoot = os.path.join(os.getcwd(), "automatic_testfonts_%s" % extension)
-        if os.path.exists(testRoot):
-            shutil.rmtree(testRoot)
-        docPath = os.path.join(testRoot, "automatic_test.designspace")
-        _makeTestDocument(docPath, useVarlib=USEVARLIBMODEL)
-        _testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL)
-        testSwap(docPath)
-        _makeTestDocument(docPath, useVarlib=USEVARLIBMODEL)
-        _testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL)
+    for extension in ['mutator', 'varlib']:
+        for objectFlavor in ['defcon', 'fontparts']:
+            # which object model to use for **executuing** the designspace.
+            # all the objects in **this test** are defcon. 
+
+            print("\n\nRunning the test with ", extension, "and", objectFlavor)
+            print("-"*40)
+            USEVARLIBMODEL = extension == 'varlib'
+            testRoot = os.path.join(os.getcwd(), "automatic_testfonts_%s_%s" % (extension, objectFlavor))
+            print("\ttestRoot", testRoot)
+            if os.path.exists(testRoot):
+                shutil.rmtree(testRoot)
+            docPath = os.path.join(testRoot, "automatic_test.designspace")
+            print("\tdocPath", docPath)
+            print("-"*40)
+            print("Generate document, masters")
+            _makeTestDocument(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
+            print("-"*40)
+            print("Generate instances")
+            _testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
+            testSwap(docPath)
+            #_makeTestDocument(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
+            #_testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")

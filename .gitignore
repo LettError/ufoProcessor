@@ -5,3 +5,7 @@ Lib/ufoProcessor/automatic_testfonts_varlib
 Tests/automatic_testfonts_mutator
 Tests/automatic_testfonts_varlib
 Lib/ufoProcessor.egg-info
+Tests/automatic_testfonts_mutator_defcon
+Tests/automatic_testfonts_mutator_fontparts
+Tests/automatic_testfonts_varlib_defcon
+Tests/automatic_testfonts_varlib_fontparts

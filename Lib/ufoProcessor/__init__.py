@@ -257,8 +257,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         self.glyphNames = []     # list of all glyphnames
         self.processRules = True
         self.problems = []  # receptacle for problem notifications. Not big enough to break, but also not small enough to ignore.
-        #if readerClass is not None:
-        #    print("ufoProcessor.ruleDescriptorClass", readerClass.ruleDescriptorClass)
 
     def generateUFO(self, processRules=True, glyphNames=None, pairs=None):
         # makes the instances
@@ -303,14 +301,21 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         try:
             if self.useVarlib:
                 # use the varlib variation model
-                return dict(), VariationModelMutator(items, self.axes)
+                try:
+                    return dict(), VariationModelMutator(items, self.axes)
+                except KeyError:
+                    error = traceback.format_exc()
+                    print("getVariationModel, using varlib")
+                    pprint(items)
+                    print(error)
+                    self.problems.append("UFOProcessor.getVariationModel error: %s" % error)
+                    return None
             else:
                 # use mutatormath model
                 axesForMutator = self.getMutatorAxes()
                 return buildMutator(items, axes=axesForMutator, bias=bias)
         except:
             error = traceback.format_exc()
-            print(error)
             self.problems.append("UFOProcessor.getVariationModel error: %s" % error)
             return None
 
@@ -320,11 +325,12 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             return self._infoMutator
         infoItems = []
         for sourceDescriptor in self.sources:
+            if sourceDescriptor.layerName is not None:
+                continue
             loc = Location(sourceDescriptor.location)
             sourceFont = self.fonts[sourceDescriptor.name]
             if sourceFont is None:
                 continue
-            #print("getInfoMutator XXX")
             if hasattr(sourceFont.info, "toMathInfo"):
                 infoItems.append((loc, sourceFont.info.toMathInfo()))
             else:
@@ -342,6 +348,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         kerningItems = []
         if pairs is None:
             for sourceDescriptor in self.sources:
+                if sourceDescriptor.layerName is not None:
+                    continue
                 loc = Location(sourceDescriptor.location)
                 sourceFont = self.fonts[sourceDescriptor.name]
                 if sourceFont is None: continue
@@ -351,6 +359,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             self._kerningMutatorPairs = pairs
             for sourceDescriptor in self.sources:
                 # XXX check sourceDescriptor layerName, only foreground should contribute
+                if sourceDescriptor.layerName is not None:
+                    continue
                 if not os.path.exists(sourceDescriptor.path):
                     continue
                 sourceFont = self.fonts[sourceDescriptor.name]
@@ -361,9 +371,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 kerningItem = self.mathKerningClass(sourceFont.kerning, sourceFont.groups)
                 sparseKerning = {}
                 for pair in pairs:
-                    sparseKerning[pair] = kerningItem[pair]
+                    if pair in kerningItem:
+                        sparseKerning[pair] = kerningItem.get(pair)
                 kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
-
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=self.defaultLoc)
         return self._kerningMutator
 
@@ -382,7 +392,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             else:
                 new.append((a,self.mathGlyphClass(b)))
         items = new
-        bias, thing = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
+        try:
+            bias, thing = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
+        except TypeError:
+            self.problems.append("aaa getGlyphMutator %s %s" % (glyphName, items))
         self._glyphMutators[cacheKey] = thing
         return thing
 
@@ -395,6 +408,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             XXX check glyphs in layers
         """
         items = []
+        foundEmpty = False
         for sourceDescriptor in self.sources:
             if not os.path.exists(sourceDescriptor.path):
                 continue
@@ -420,12 +434,14 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     if glyphName not in sourceLayer:
                         # this might be a support in a sparse layer
                         # so we're skipping!
-                        #print("XXXX", glyphName, "not in", sourceDescriptor.layerName)
                         continue
             # still have to check if the sourcelayer glyph is empty
-            sourceGlyphObject = sourceLayer[glyphName]
-            if checkGlyphIsEmpty(sourceGlyphObject, allowWhiteSpace=True):
-                continue
+            if glyphName in sourceLayer:
+                sourceGlyphObject = sourceLayer[glyphName]
+                if checkGlyphIsEmpty(sourceGlyphObject, allowWhiteSpace=True):
+                    foundEmpty = True
+                    sourceGlyphObject = None
+                    continue
             if decomposeComponents:
                 # what about decomposing glyphs in a partial font?
                 temp = self.glyphClass()
@@ -467,7 +483,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if sourceDescriptor.name not in self.fonts:
                 if os.path.exists(sourceDescriptor.path):
                     self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
-                    self.problems.append("loaded master from %s, format %d" % (sourceDescriptor.path, getUFOVersion(sourceDescriptor.path)))
+                    self.problems.append("loaded master from %s, layer %s, format %d" % (sourceDescriptor.path, sourceDescriptor.layerName, getUFOVersion(sourceDescriptor.path)))
                     names = names | set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
@@ -636,7 +652,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     glyphInstanceObject = (0,1)*horizontalGlyphInstanceObject + (1,0)*verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
-                print("Error making instance for glyph \"%s\"" % glyphName)
                 continue
             font.newGlyph(glyphName)
             font[glyphName].clear()
@@ -646,7 +661,17 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 except AttributeError:
                     pass
             try:
-                glyphInstanceObject.extractGlyph(font[glyphName], onlyGeometry=True)
+                # File "/Users/erik/code/ufoProcessor/Lib/ufoProcessor/__init__.py", line 649, in makeInstance
+                #   glyphInstanceObject.extractGlyph(font[glyphName], onlyGeometry=True)
+                # File "/Applications/RoboFont.app/Contents/Resources/lib/python3.6/fontMath/mathGlyph.py", line 315, in extractGlyph
+                #   glyph.anchors = [dict(anchor) for anchor in self.anchors]
+                # File "/Applications/RoboFont.app/Contents/Resources/lib/python3.6/fontParts/base/base.py", line 103, in __set__
+                #   raise FontPartsError("no setter for %r" % self.name)
+                #   fontParts.base.errors.FontPartsError: no setter for 'anchors'
+                if hasattr(font[glyphName], "fromMathGlyph"):
+                    font[glyphName].fromMathGlyph(glyphInstanceObject)
+                else:
+                    glyphInstanceObject.extractGlyph(font[glyphName], onlyGeometry=True)
             except TypeError:
                 # this causes ruled glyphs to end up in the wrong glyphname
                 # but defcon2 objects don't support it
