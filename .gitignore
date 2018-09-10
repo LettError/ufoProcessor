@@ -1,3 +1,4 @@
+*.pyc
 Lib/ufoProcessor/automatic_testfonts
 .pytest_cache
 Lib/ufoProcessor/automatic_testfonts_mutator
