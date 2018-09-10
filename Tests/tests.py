@@ -302,6 +302,62 @@ def testSwap(docPath):
     assert new['wide.component'].components[0].baseGlyph == "narrow"
     assert new['narrow.component'].components[0].baseGlyph == "wide"
 
+def testAxisMuting():
+    d = DesignSpaceProcessor_using_defcon(useVarlib=True)
+
+    a = AxisDescriptor()
+    a.name = "pop"
+    a.minimum = 0
+    a.maximum = 1000
+    a.default = 0
+    a.tag = "pop*"
+    d.addAxis(a)
+
+    a = AxisDescriptor()
+    a.name = "snap"
+    a.minimum = 100
+    a.maximum = 200
+    a.default = 150
+    a.tag = "snap"
+    d.addAxis(a)
+
+    a = AxisDescriptor()
+    a.name = "crackle"
+    a.minimum = -1
+    a.maximum = 1
+    a.default = 0
+    a.tag = "krak"
+    d.addAxis(a)
+
+    shouldIgnore, loc = d.filterThisLocation(dict(snap=150, crackle=0, pop=0), [])
+    assert shouldIgnore == False
+    assert loc == {'snap': 150, 'crackle': 0, 'pop': 0}
+
+    shouldIgnore, loc = d.filterThisLocation(dict(snap=150, crackle=0, pop=0), ['pop'])
+    assert shouldIgnore == False
+    assert loc == {'snap': 150, 'crackle': 0}
+
+    shouldIgnore, loc = d.filterThisLocation(dict(snap=150, crackle=0, pop=1), ['pop'])
+    assert shouldIgnore == True
+    assert loc == {'snap': 150, 'crackle': 0}
+
+    shouldIgnore, loc = d.filterThisLocation(dict(snap=150, crackle=0, pop=0), ['pop', 'crackle'])
+    assert shouldIgnore == False
+    assert loc == {'snap': 150}
+
+    shouldIgnore, loc = d.filterThisLocation(dict(snap=150, crackle=0, pop=1), ['pop', 'crackle', 'snap'])
+    assert shouldIgnore == True
+    assert loc == {}
+
+    shouldIgnore, loc = d.filterThisLocation(dict(snap=150, crackle=0, pop=0), ['one', 'two', 'three'])
+    assert shouldIgnore == False
+    assert loc == {'snap': 150, 'crackle': 0, 'pop': 0}
+
+    shouldIgnore, loc = d.filterThisLocation(dict(snap=150, crackle=0, pop=1), ['one', 'two', 'three'])
+    assert shouldIgnore == False
+    assert loc == {'snap': 150, 'crackle': 0, 'pop': 1}
+    
+
 def testUnicodes(docPath, useVarlib=True):
     # after executing testSwap there should be some test fonts
     # let's check if the unicode values for glyph "narrow" arrive at the right place.
@@ -344,3 +400,6 @@ if selfTest:
             testSwap(docPath)
             #_makeTestDocument(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
             #_testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
+
+
+testAxisMuting()

@@ -1,6 +1,5 @@
 # coding: utf-8
 
-
 from __future__ import print_function, division, absolute_import
 
 import plistlib
@@ -269,6 +268,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         self._kerningMutatorPairs = None
         self.fonts = {}
         self._fontsLoaded = False
+        self.mutedAxisNames = None    # list of axisname that need to be muted
         self.glyphNames = []     # list of all glyphnames
         self.processRules = True
         self.problems = []  # receptacle for problem notifications. Not big enough to break, but also not small enough to ignore.
@@ -392,7 +392,30 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=self.defaultLoc)
         return self._kerningMutator
 
-    def getGlyphMutator(self, glyphName, decomposeComponents=False, fromCache=True):
+    def filterThisLocation(self, location, mutedAxes):
+        # return location with axes is mutedAxes removed
+        # this means checking if the location is a non-default value
+        if not mutedAxes:
+            return True, location
+        defaults = {}
+        ignoreMaster = False
+        for aD in self.axes:
+            defaults[aD.name] = aD.default
+        new = {}
+        new.update(location)
+        for mutedAxisName in mutedAxes:
+            if mutedAxisName not in location:
+                continue
+            if mutedAxisName not in defaults:
+                continue
+            if location[mutedAxisName] != defaults.get(mutedAxisName):
+                ignoreMaster = True
+            del new[mutedAxisName]
+        return ignoreMaster, new
+
+    def getGlyphMutator(self, glyphName,
+            decomposeComponents=False,
+            fromCache=None):
         # make a mutator / varlib object for glyphName.
         cacheKey = (glyphName, decomposeComponents)
         if cacheKey in self._glyphMutators and fromCache:
@@ -407,6 +430,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             else:
                 new.append((a,self.mathGlyphClass(b)))
         items = new
+        thing = None
         try:
             bias, thing = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
         except TypeError:
@@ -429,6 +453,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 #kthxbai
                 continue
             if glyphName in sourceDescriptor.mutedGlyphNames:
+                continue
+            ignoreMaster, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
+            if ignoreMaster: 
                 continue
             f = self.fonts[sourceDescriptor.name]
             if f is None: continue
@@ -456,9 +483,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 continue
             else:
                 sourceGlyphObject = sourceLayer[glyphName]
-                isEmpty = checkGlyphIsEmpty(sourceGlyphObject, allowWhiteSpace=True)
-                self.problems.append("empty: %s, glyphname: %s, glyphobj: %s, layerobj: %s layername: %s" % (isEmpty, glyphName, sourceGlyphObject, sourceLayer, sourceDescriptor.layerName))
-                if isEmpty:
+                if checkGlyphIsEmpty(sourceGlyphObject, allowWhiteSpace=True):
                     foundEmpty = True
                     sourceGlyphObject = None
                     continue
@@ -473,7 +498,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 processThis = temp
             else:
                 processThis = sourceGlyphObject
-            sourceInfo = dict(source=f.path, glyphName=glyphName, layerName=layerName, location=sourceDescriptor.location, sourceName=sourceDescriptor.name)
+            sourceInfo = dict(source=f.path, glyphName=glyphName,
+                    layerName=layerName,
+                    location=filteredLocation,  #   sourceDescriptor.location,
+                    sourceName=sourceDescriptor.name)
             if hasattr(processThis, "toMathGlyph"):
                 processThis = processThis.toMathGlyph()
             else:
@@ -520,7 +548,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 fonts.append((f, sourceDescriptor.location))
         return fonts
 
-    def makeInstance(self, instanceDescriptor, doRules=False, glyphNames=None, pairs=None):
+    def makeInstance(self, instanceDescriptor,
+            doRules=False,
+            glyphNames=None,
+            pairs=None):
         """ Generate a font object for this instance """
         font = self._instantiateFont(None)
         # make fonty things here
