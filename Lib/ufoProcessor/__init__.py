@@ -15,6 +15,8 @@ from fontTools.varLib.models import VariationModel, normalizeLocation
 from ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
 
 import defcon
+import fontParts.fontshell.font
+import defcon.objects.font
 from defcon.objects.font import Font
 from defcon.pens.transformPointPen import TransformPointPen
 from defcon.objects.component import _defaultTransformation
@@ -36,6 +38,19 @@ class UFOProcessorError(Exception):
 
     def __str__(self):
         return repr(self.msg) + repr(self.obj)
+
+
+def getLayer(f, layerName):
+    # get the layer from a defcon font and from a fontparts font
+    if issubclass(type(f), defcon.objects.font.Font):
+        if layerName in f.layers:
+            return f.layers[layerName]
+    elif issubclass(type(f), fontParts.fontshell.font.RFont):
+        if layerName in f.layerOrder:
+            return f.getLayer(layerName)
+    return None
+
+
 
 
 """
@@ -411,34 +426,39 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         foundEmpty = False
         for sourceDescriptor in self.sources:
             if not os.path.exists(sourceDescriptor.path):
+                #kthxbai
                 continue
-            loc = Location(sourceDescriptor.location)
-            f = self.fonts[sourceDescriptor.name]
-            if f is None: continue
-            sourceLayer = f
             if glyphName in sourceDescriptor.mutedGlyphNames:
                 continue
+            f = self.fonts[sourceDescriptor.name]
+            if f is None: continue
+            loc = Location(sourceDescriptor.location)
+            sourceLayer = f
             if not glyphName in f:
                 # log this>
                 continue
             layerName = "foreground"
+            sourceGlyphObject = None
             # handle source layers
-
             if sourceDescriptor.layerName is not None:
                 # start looking for a layer
                 # Do not bother for mutatorMath designspaces
-                if sourceDescriptor.layerName in f.layers:
-                    sourceLayer = f.layers[sourceDescriptor.layerName]
-                    layerName = sourceDescriptor.layerName
+                sourceLayer = getLayer(f, sourceDescriptor.layerName)
+                if sourceLayer is None:
+                    continue
+                if glyphName not in sourceLayer:
                     # start looking for a glyph
-                    if glyphName not in sourceLayer:
-                        # this might be a support in a sparse layer
-                        # so we're skipping!
-                        continue
+                    # this might be a support in a sparse layer
+                    # so we're skipping!
+                    continue
             # still have to check if the sourcelayer glyph is empty
-            if glyphName in sourceLayer:
+            if not glyphName in sourceLayer:
+                continue
+            else:
                 sourceGlyphObject = sourceLayer[glyphName]
-                if checkGlyphIsEmpty(sourceGlyphObject, allowWhiteSpace=True):
+                isEmpty = checkGlyphIsEmpty(sourceGlyphObject, allowWhiteSpace=True)
+                self.problems.append("empty: %s, glyphname: %s, glyphobj: %s, layerobj: %s layername: %s" % (isEmpty, glyphName, sourceGlyphObject, sourceLayer, sourceDescriptor.layerName))
+                if isEmpty:
                     foundEmpty = True
                     sourceGlyphObject = None
                     continue
