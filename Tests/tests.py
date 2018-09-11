@@ -357,7 +357,6 @@ def testAxisMuting():
     assert shouldIgnore == False
     assert loc == {'snap': 150, 'crackle': 0, 'pop': 1}
     
-
 def testUnicodes(docPath, useVarlib=True):
     # after executing testSwap there should be some test fonts
     # let's check if the unicode values for glyph "narrow" arrive at the right place.

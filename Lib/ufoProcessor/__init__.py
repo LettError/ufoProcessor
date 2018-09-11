@@ -318,12 +318,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 # use the varlib variation model
                 try:
                     return dict(), VariationModelMutator(items, self.axes)
-                except KeyError:
+                except (KeyError, AssertionError):
                     error = traceback.format_exc()
-                    print("getVariationModel, using varlib")
-                    pprint(items)
-                    print(error)
+                    #print("getVariationModel, using varlib")
+                    #pprint(items)
+                    #print(error)
                     self.problems.append("UFOProcessor.getVariationModel error: %s" % error)
+                    self.problems.append(items)
                     return None
             else:
                 # use mutatormath model
@@ -396,7 +397,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         # return location with axes is mutedAxes removed
         # this means checking if the location is a non-default value
         if not mutedAxes:
-            return True, location
+            return False, location
         defaults = {}
         ignoreMaster = False
         for aD in self.axes:
@@ -429,13 +430,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 new.append((a,b.toMathGlyph()))
             else:
                 new.append((a,self.mathGlyphClass(b)))
-        items = new
         thing = None
         try:
-            bias, thing = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
+            bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.defaultLoc)
         except TypeError:
-            self.problems.append("aaa getGlyphMutator %s %s" % (glyphName, items))
-        self._glyphMutators[cacheKey] = thing
+            self.problems.append("aaa getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
+        if thing is not None:
+            self._glyphMutators[cacheKey] = thing
         return thing
 
     def collectMastersForGlyph(self, glyphName, decomposeComponents=False):
