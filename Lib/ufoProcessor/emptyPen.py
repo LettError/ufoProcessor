@@ -35,7 +35,7 @@ def checkGlyphIsEmpty(glyph, allowWhiteSpace=True):
     """
         This will establish if the glyph is completely empty by drawing the glyph with an EmptyPen.
         Additionally, the unicode of the glyph is checked against a list of known unicode whitespace
-        characters. This makes it possible to filter out glyphs that are have a valid reason to be empty
+        characters. This makes it possible to filter out glyphs that have a valid reason to be empty
         and those that can be ignored.
     """
     whiteSpace = [  0x9,    # horizontal tab

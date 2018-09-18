@@ -38,7 +38,6 @@ class UFOProcessorError(Exception):
     def __str__(self):
         return repr(self.msg) + repr(self.obj)
 
-
 def getLayer(f, layerName):
     # get the layer from a defcon font and from a fontparts font
     if issubclass(type(f), defcon.objects.font.Font):
@@ -48,9 +47,6 @@ def getLayer(f, layerName):
         if layerName in f.layerOrder:
             return f.getLayer(layerName)
     return None
-
-
-
 
 """
     Processing of rules when generating UFOs.
@@ -273,7 +269,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         self.processRules = True
         self.problems = []  # receptacle for problem notifications. Not big enough to break, but also not small enough to ignore.
 
-    def generateUFO(self, processRules=True, glyphNames=None, pairs=None):
+    def generateUFO(self, processRules=True, glyphNames=None, pairs=None, bend=True):
         # makes the instances
         # option to execute the rules
         # make sure we're not trying to overwrite a newer UFO format
@@ -286,7 +282,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for instanceDescriptor in self.instances:
             if instanceDescriptor.path is None:
                 continue
-            font = self.makeInstance(instanceDescriptor, processRules, glyphNames=glyphNames, pairs=pairs)
+            font = self.makeInstance(instanceDescriptor, processRules, glyphNames=glyphNames, pairs=pairs, bend=bend)
             folder = os.path.dirname(instanceDescriptor.path)
             path = instanceDescriptor.path
             if not os.path.exists(folder):
@@ -458,7 +454,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             ignoreMaster, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
             if ignoreMaster: 
                 continue
-            f = self.fonts[sourceDescriptor.name]
+            f = self.fonts.get(sourceDescriptor.name)
             if f is None: continue
             loc = Location(sourceDescriptor.location)
             sourceLayer = f
@@ -552,7 +548,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     def makeInstance(self, instanceDescriptor,
             doRules=False,
             glyphNames=None,
-            pairs=None):
+            pairs=None,
+            bend=False):
         """ Generate a font object for this instance """
         font = self._instantiateFont(None)
         # make fonty things here
@@ -574,7 +571,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         if instanceDescriptor.kerning and pairs:
             try:
                 kerningMutator = self.getKerningMutator(pairs=pairs)
-                kerningObject = kerningMutator.makeInstance(locHorizontal)
+                kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                 kerningObject.extractKerning(font)
             except:
                 self.problems.append("Could not make kerning for %s. %s" % (loc, traceback.format_exc()))
@@ -582,10 +579,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         try:
             infoMutator = self.getInfoMutator()
             if not anisotropic:
-                infoInstanceObject = infoMutator.makeInstance(loc)
+                infoInstanceObject = infoMutator.makeInstance(loc, bend=bend)
             else:
-                horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal)
-                verticalInfoInstanceObject = infoMutator.makeInstance(locVertical)
+                horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
+                verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
                 # merge them again
                 infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
             infoInstanceObject.extractInfo(font.info)
@@ -691,15 +688,16 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                         sourceGlyph = MathGlyph(m[sourceGlyphName])
                     sourceGlyphLocation = glyphMaster.get("location")
                     items.append((Location(sourceGlyphLocation), sourceGlyph))
+                print("UFOProcessor.getVariationModel 4")
                 bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
             try:
                 if not self.isAnisotropic(glyphInstanceLocation):
-                    glyphInstanceObject = glyphMutator.makeInstance(glyphInstanceLocation)
+                    glyphInstanceObject = glyphMutator.makeInstance(glyphInstanceLocation, bend=bend)
                 else:
                     # split anisotropic location into horizontal and vertical components
                     horizontal, vertical = self.splitAnisotropic(glyphInstanceLocation)
-                    horizontalGlyphInstanceObject = glyphMutator.makeInstance(horizontal)
-                    verticalGlyphInstanceObject = glyphMutator.makeInstance(vertical)
+                    horizontalGlyphInstanceObject = glyphMutator.makeInstance(horizontal, bend=bend)
+                    verticalGlyphInstanceObject = glyphMutator.makeInstance(vertical, bend=bend)
                     # merge them again
                     glyphInstanceObject = (0,1)*horizontalGlyphInstanceObject + (1,0)*verticalGlyphInstanceObject
             except IndexError:
