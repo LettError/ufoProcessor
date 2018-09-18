@@ -88,7 +88,7 @@ class VariationModelMutator(object):
         nl = self._normalize(location)
         return self.model.getScalars(nl)
 
-    def makeInstance(self, location, bend=False):
+    def makeInstance(self, location, bend=True):
         # check for anisotropic locations here
         if bend:
             location = self.axisMapper(location)
