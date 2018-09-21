@@ -38,6 +38,14 @@ class UFOProcessorError(Exception):
     def __str__(self):
         return repr(self.msg) + repr(self.obj)
 
+def getDefaultLayerName(f):
+    # get the name of the default layer from a defcon font and from a fontparts font
+    if issubclass(type(f), defcon.objects.font.Font):
+        return f.layers.defaultLayer.name
+    elif issubclass(type(f), fontParts.fontshell.font.RFont):
+        return f.defaultLayer.name
+    return None
+
 def getLayer(f, layerName):
     # get the layer from a defcon font and from a fontparts font
     if issubclass(type(f), defcon.objects.font.Font):
@@ -268,6 +276,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         self.glyphNames = []     # list of all glyphnames
         self.processRules = True
         self.problems = []  # receptacle for problem notifications. Not big enough to break, but also not small enough to ignore.
+        self.toolLog = []
 
     def generateUFO(self, processRules=True, glyphNames=None, pairs=None, bend=True):
         # makes the instances
@@ -319,8 +328,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     #print("getVariationModel, using varlib")
                     #pprint(items)
                     #print(error)
-                    self.problems.append("UFOProcessor.getVariationModel error: %s" % error)
-                    self.problems.append(items)
+                    self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
+                    self.toolLog.append(items)
                     return None
             else:
                 # use mutatormath model
@@ -328,7 +337,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 return buildMutator(items, axes=axesForMutator, bias=bias)
         except:
             error = traceback.format_exc()
-            self.problems.append("UFOProcessor.getVariationModel error: %s" % error)
+            self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
             return None
 
     def getInfoMutator(self):
@@ -430,7 +439,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         try:
             bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.defaultLoc)
         except TypeError:
-            self.problems.append("aaa getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
+            self.toolLog.append("getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
+            self.problems.append("\tCan't make processor for glyph %s" % (glyphName))
         if thing is not None:
             self._glyphMutators[cacheKey] = thing
         return thing
@@ -444,13 +454,18 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             XXX check glyphs in layers
         """
         items = []
+        empties = []
         foundEmpty = False
         for sourceDescriptor in self.sources:
             if not os.path.exists(sourceDescriptor.path):
                 #kthxbai
+                p = "\tMissing UFO at %s" % sourceDescriptor.path
+                if p not in self.problems:
+                    self.problems.append(p)
                 continue
             if glyphName in sourceDescriptor.mutedGlyphNames:
                 continue
+            thisIsDefault = self.default == sourceDescriptor
             ignoreMaster, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
             if ignoreMaster: 
                 continue
@@ -461,12 +476,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if not glyphName in f:
                 # log this>
                 continue
-            layerName = "foreground"
+            layerName = getDefaultLayerName(f)
             sourceGlyphObject = None
             # handle source layers
             if sourceDescriptor.layerName is not None:
                 # start looking for a layer
                 # Do not bother for mutatorMath designspaces
+                layerName = sourceDescriptor.layerName
                 sourceLayer = getLayer(f, sourceDescriptor.layerName)
                 if sourceLayer is None:
                     continue
@@ -482,8 +498,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 sourceGlyphObject = sourceLayer[glyphName]
                 if checkGlyphIsEmpty(sourceGlyphObject, allowWhiteSpace=True):
                     foundEmpty = True
-                    sourceGlyphObject = None
-                    continue
+                    #sourceGlyphObject = None
+                    #continue
             if decomposeComponents:
                 # what about decomposing glyphs in a partial font?
                 temp = self.glyphClass()
@@ -498,13 +514,37 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             sourceInfo = dict(source=f.path, glyphName=glyphName,
                     layerName=layerName,
                     location=filteredLocation,  #   sourceDescriptor.location,
-                    sourceName=sourceDescriptor.name)
+                    sourceName=sourceDescriptor.name,
+                    )
             if hasattr(processThis, "toMathGlyph"):
                 processThis = processThis.toMathGlyph()
             else:
                 processThis = self.mathGlyphClass(processThis)
             items.append((loc, processThis, sourceInfo))
-        return items
+            empties.append((thisIsDefault, foundEmpty))
+        # check the empties:
+        # if the default glyph is empty, then all must be empty
+        # if the default glyph is not empty then none can be empty
+        checkedItems = []
+        emptiesAllowed = False
+        # first check if the default is empty.
+        # remember that the sources can be in any order
+        for i, p in enumerate(empties):
+            isDefault, isEmpty = p
+            if isDefault and isEmpty:
+                emptiesAllowed = True
+                # now we know what to look for
+        if not emptiesAllowed:
+            for i, p in enumerate(empties):
+                isDefault, isEmpty = p
+                if not isEmpty:
+                    checkedItems.append(items[i])
+        else:
+            for i, p in enumerate(empties):
+                isDefault, isEmpty = p
+                if isEmpty:
+                    checkedItems.append(items[i])
+        return checkedItems
 
     def getNeutralFont(self):
         # Return a font object for the neutral font
