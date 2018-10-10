@@ -77,6 +77,7 @@ class VariationModelMutator(object):
         else:
             self.model = model
         self.masters = [b for a, b in items]
+        self.locations = [a for a, b in items]
 
     def get(self, key):
         if key in self.model.locations:
@@ -88,8 +89,21 @@ class VariationModelMutator(object):
         nl = self._normalize(location)
         return self.model.getScalars(nl)
 
+    def getMasters(self):
+        return self.masters
+
     def getSupports(self):
         return self.model.supports
+
+    def getReach(self):
+        items = []
+        for supportIndex, s in enumerate(self.getSupports()):
+            sortedOrder = self.model.reverseMapping[supportIndex]
+            print(self.masters[sortedOrder], s)
+            print(self.locations[sortedOrder])
+            items.append((self.masters[sortedOrder], s))
+        return items
+
 
     def makeInstance(self, location, bend=True):
         # check for anisotropic locations here
@@ -147,3 +161,5 @@ if __name__ == "__main__":
     assert mm.makeInstance(dict(A=100, B=100)) == 0
     assert mm.makeInstance(dict(A=50, B=0),bend=False) == 5
     assert mm.makeInstance(dict(A=50, B=0),bend=True) == 2.5
+
+    mm.getReach()

@@ -195,6 +195,7 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
     s2.path = m2
     s2.location = dict(pop=1000)
     s2.name = "test.master.2"
+    s2.muteKerning = True
     d.addSource(s2)
 
     s3 = SourceDescriptor()

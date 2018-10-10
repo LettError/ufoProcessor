@@ -371,11 +371,12 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             for sourceDescriptor in self.sources:
                 if sourceDescriptor.layerName is not None:
                     continue
-                loc = Location(sourceDescriptor.location)
-                sourceFont = self.fonts[sourceDescriptor.name]
-                if sourceFont is None: continue
-                # this makes assumptions about the groups of all sources being the same.
-                kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
+                if not sourceDescriptor.muteKerning:                    
+                    loc = Location(sourceDescriptor.location)
+                    sourceFont = self.fonts[sourceDescriptor.name]
+                    if sourceFont is None: continue
+                    # this makes assumptions about the groups of all sources being the same.
+                    kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
         else:
             self._kerningMutatorPairs = pairs
             for sourceDescriptor in self.sources:
@@ -384,17 +385,18 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     continue
                 if not os.path.exists(sourceDescriptor.path):
                     continue
-                sourceFont = self.fonts[sourceDescriptor.name]
-                if sourceFont is None:
-                    continue
-                loc = Location(sourceDescriptor.location)
-                # XXX can we get the kern value from the fontparts kerning object?
-                kerningItem = self.mathKerningClass(sourceFont.kerning, sourceFont.groups)
-                sparseKerning = {}
-                for pair in pairs:
-                    if pair in kerningItem:
-                        sparseKerning[pair] = kerningItem.get(pair)
-                kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
+                if not sourceDescriptor.muteKerning:                    
+                    sourceFont = self.fonts[sourceDescriptor.name]
+                    if sourceFont is None:
+                        continue
+                    loc = Location(sourceDescriptor.location)
+                    # XXX can we get the kern value from the fontparts kerning object?
+                    kerningItem = self.mathKerningClass(sourceFont.kerning, sourceFont.groups)
+                    sparseKerning = {}
+                    for pair in pairs:
+                        if pair in kerningItem:
+                            sparseKerning[pair] = kerningItem.get(pair)
+                    kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=self.defaultLoc)
         return self._kerningMutator
 
@@ -608,13 +610,18 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         # make the kerning
         # this kerning is always horizontal. We can take the horizontal location
         # filter the available pairs?
-        if instanceDescriptor.kerning and pairs:
-            try:
-                kerningMutator = self.getKerningMutator(pairs=pairs)
+        if instanceDescriptor.kerning:
+            if pairs:
+                try:
+                    kerningMutator = self.getKerningMutator(pairs=pairs)
+                    kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
+                    kerningObject.extractKerning(font)
+                except:
+                    self.problems.append("Could not make kerning for %s. %s" % (loc, traceback.format_exc()))
+            else:
+                kerningMutator = self.getKerningMutator()
                 kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                 kerningObject.extractKerning(font)
-            except:
-                self.problems.append("Could not make kerning for %s. %s" % (loc, traceback.format_exc()))
         # make the info
         try:
             infoMutator = self.getInfoMutator()
