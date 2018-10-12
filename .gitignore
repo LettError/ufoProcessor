@@ -1,12 +1,31 @@
-*.pyc
-Lib/ufoProcessor/automatic_testfonts
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.idea
+*.log
+
+# Distribution / Packaging
+*.egg-info
+*.eggs
+build
+dist
+
+# Unit test / coverage files
+.coverage
+.coverage.*
 .pytest_cache
+.tox/
+htmlcov/
+
+# auto-generated version file
+Lib/ufoProcessor/_version.py
+
+Lib/ufoProcessor/automatic_testfonts
 Lib/ufoProcessor/automatic_testfonts_mutator
 Lib/ufoProcessor/automatic_testfonts_varlib
 Tests/automatic_testfonts_mutator
-Tests/automatic_testfonts_varlib
-Lib/ufoProcessor.egg-info
 Tests/automatic_testfonts_mutator_defcon
 Tests/automatic_testfonts_mutator_fontparts
+Tests/automatic_testfonts_varlib
 Tests/automatic_testfonts_varlib_defcon
 Tests/automatic_testfonts_varlib_fontparts

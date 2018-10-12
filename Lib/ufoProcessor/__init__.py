@@ -6,7 +6,7 @@ import plistlib
 import os
 import logging, traceback
 import collections
-from pprint import pprint
+# from pprint import pprint
 
 from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
 from fontTools.varLib.models import VariationModel, normalizeLocation
@@ -28,6 +28,12 @@ from mutatorMath.objects.mutator import buildMutator
 from mutatorMath.objects.location import Location
 from ufoProcessor.varModels import VariationModelMutator
 from ufoProcessor.emptyPen import checkGlyphIsEmpty
+
+
+try:
+    from ._version import version as __version__
+except ImportError:
+    __version__ = "0.0.0+unknown"
 
 
 class UFOProcessorError(Exception):
@@ -371,7 +377,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             for sourceDescriptor in self.sources:
                 if sourceDescriptor.layerName is not None:
                     continue
-                if not sourceDescriptor.muteKerning:                    
+                if not sourceDescriptor.muteKerning:
                     loc = Location(sourceDescriptor.location)
                     sourceFont = self.fonts[sourceDescriptor.name]
                     if sourceFont is None: continue
@@ -385,7 +391,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     continue
                 if not os.path.exists(sourceDescriptor.path):
                     continue
-                if not sourceDescriptor.muteKerning:                    
+                if not sourceDescriptor.muteKerning:
                     sourceFont = self.fonts[sourceDescriptor.name]
                     if sourceFont is None:
                         continue
@@ -469,7 +475,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 continue
             thisIsDefault = self.default == sourceDescriptor
             ignoreMaster, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
-            if ignoreMaster: 
+            if ignoreMaster:
                 continue
             f = self.fonts.get(sourceDescriptor.name)
             if f is None: continue
