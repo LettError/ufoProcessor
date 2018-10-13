@@ -16,6 +16,7 @@ setup(
     use_scm_version={"write_to": "Lib/ufoProcessor/_version.py"},
     description="Read, write and generate UFOs with designspace data.",
     long_description=long_description,
+    long_description_content_type='text/markdown',
     author="Erik van Blokland",
     author_email="erik@letterror.com",
     url="https://github.com/LettError/ufoProcessor",

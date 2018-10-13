@@ -1,3 +1,5 @@
+[![PyPI](https://img.shields.io/pypi/v/ufoprocessor.svg)](https://pypi.org/project/ufoprocessor)
+
 # ufoProcessor
 Python package based on the **designSpaceDocument** from [fontTools.designspaceLib](https://github.com/fonttools/fonttools/tree/master/Lib/fontTools/designspaceLib)) specifically to _process_ and _generate_ instances for UFO files, glyphs and other data.
 
