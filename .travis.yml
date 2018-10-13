@@ -11,8 +11,9 @@ matrix:
     - python: 3.6
       env: PYPI_DEPLOY=true
 
-# install:
-#   - pip install pytest coverage codecov
+install:
+  - pip install -U setuptools wheel
+  # - pip install pytest coverage codecov
 
 script:
   # generate wheel
