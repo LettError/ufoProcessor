@@ -5,9 +5,11 @@ env:
     - TWINE_USERNAME="letterror-ci"
     # Note: TWINE_PASSWORD is set in Travis settings
 
-python:
-  - "2.7"
-  - "3.6"
+matrix:
+  include:
+    - python: 2.7
+    - python: 3.6
+      env: PYPI_DEPLOY=true
 
 # install:
 #   - pip install pytest coverage codecov
@@ -21,7 +23,7 @@ after_success:
   # generate source distribution file
   # and deploy wheel and sdist files to PyPI on git tags
   - |
-    if [[ $TRAVIS_TAG ]]; then
+    if [ $TRAVIS_TAG ] && [ $PYPI_DEPLOY ]; then
       python -m pip install twine
       python setup.py sdist
       python -m twine upload dist/*
