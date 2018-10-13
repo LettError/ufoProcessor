@@ -1,0 +1,38 @@
+language: python
+
+env:
+  global:
+    - TWINE_USERNAME="letterror-ci"
+    # Note: TWINE_PASSWORD is set in Travis settings
+
+python:
+  - "2.7"
+  - "3.6"
+
+# install:
+#   - pip install pytest coverage codecov
+
+script:
+  # generate wheel
+  # (that's all it can be done for now since ufoProcessor's test suite is not setup)
+  - python setup.py bdist_wheel
+
+after_success:
+  # generate source distribution file
+  # and deploy wheel and sdist files to PyPI on git tags
+  - |
+    if [[ $TRAVIS_TAG ]]; then
+      python -m pip install twine
+      python setup.py sdist
+      python -m twine upload dist/*
+    fi
+
+deploy:
+  # create a GitHub (Pre)Release on git tags
+  - provider: releases
+    api_key:
+      secure: JYAxvC7A46oY0mmhEknUzJ5iTeLwBWyV0ZnNXlx3t6uhKmmPadxSSkTR4uI87DXfYQBlvNnw+VDHaTeaaaXZOUXmcLn7UIjHsBqdhCGKWMKQ2Z0HpSMvYEUVUezHsLteZvdeL1i4c/q7Iaf2SuNuzOlnNvWomxC24yI/cSzRpqP0wumyXh8Qewod7B5/X2mBO8ICxkEETJBFlwHiWyN8p0lF/aaRIOmujHTqQCBy7xN81rGUcsmY5EaU4ojdwybUaa9e1XRNwwWxO3XOVMsSrlAOb8+PLlegi+LY5vi6e2udVHcRtm/2f0RZuKKjfQ6RMPumqkcCerKE5IdZr2NK0P74HXIrqJ4YX8dSIDk8IVEWgZxiYqBpAtXJvq40V90Mh0atR5318WtcUhPzZftVp5JajU+EU1FmyusNdjnHSYosNKVjCEkwqf3fySLk2uxqiDnyIwMUBsvmewwWCMw0NUOFHyG5uOKqRO4n5NWDnrqaUgcenbB/EZtIE/jrGddW7OgHCVS1jcqcTFK0yfz7X98ej6V1OJqEIwLZe2ZDNTGspcIsP83mtahJFF4lLuyfa5/cN7t/1Gc3rC0qNYa3diMK4gV8K3r1c7yjAy5d3siXspx/2Rb7u7jdbI8JLzWGfuByJj9MuN1RRP7nkqMkxpyDzib4QEG169Lb5Rus+Aw=
+    skip_cleanup: true
+    prerelease: true
+    on:
+      tags: true
