@@ -91,6 +91,16 @@ def fillInfo(font):
     font.info.ascender = 800
     font.info.descender = -200
 
+def _create_parent_dir(ufo_path):
+    """
+    Creates the parent directory where the UFO will be saved, in case it
+    doesn't exist already. This is required because fontTools.ufoLib no
+    longer calls os.makedirs.
+    """
+    directory = os.path.dirname(os.path.normpath(ufo_path))
+    if directory and not os.path.exists(directory):
+        os.makedirs(directory)
+
 def _makeTestFonts(rootPath):
     """ Make some test fonts that have the kerning problem."""
     path1 = os.path.join(rootPath, "masters", "geometryMaster1.ufo")
@@ -132,6 +142,8 @@ def _makeTestFonts(rootPath):
     f2.kerning[('glyphOne', 'glyphFour')] = 0
     print([l.name for l in f1.layers], [l.name for l in f2.layers])
 
+    _create_parent_dir(path1)
+    _create_parent_dir(path2)
     f1.save(path1, 3)
     f2.save(path2, 3)
     return path1, path2, path3, path4, path5

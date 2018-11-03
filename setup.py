@@ -27,11 +27,10 @@ setup(
     python_requires='>=2.7',
     setup_requires=wheel + ["setuptools_scm"],
     install_requires=[
-        "defcon>=0.3.5",
-        "fontMath>=0.4.4",
-        "fontParts",
-        "fontTools>=3.22.0",
-        "ufoLib>=2.0.0",
+        "defcon[lxml]>=0.6.0",
+        "fontMath>=0.4.8",
+        "fontParts>=0.8.2",
+        "fontTools[ufo,lxml]>=3.32.0",
     ],
     classifiers=[
         "Development Status :: 4 - Beta",

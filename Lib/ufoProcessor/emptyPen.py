@@ -1,5 +1,5 @@
 # coding: utf-8
-from ufoLib.pointPen import AbstractPointPen
+from fontTools.pens.pointPen import AbstractPointPen
 
 """
     Simple pen object to determine if a glyph contains any geometry.
