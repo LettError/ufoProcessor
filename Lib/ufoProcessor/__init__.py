@@ -399,8 +399,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     kerningItem = self.mathKerningClass(sourceFont.kerning, sourceFont.groups)
                     sparseKerning = {}
                     for pair in pairs:
-                        if pair in kerningItem:
-                            sparseKerning[pair] = kerningItem.get(pair)
+                        v = kerningItem.get(pair)
+                        if v is not None:
+                            sparseKerning[pair] = v
                     kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=self.defaultLoc)
         return self._kerningMutator
