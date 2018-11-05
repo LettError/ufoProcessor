@@ -330,9 +330,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     return dict(), VariationModelMutator(items, self.axes)
                 except (KeyError, AssertionError):
                     error = traceback.format_exc()
-                    #print("getVariationModel, using varlib")
-                    #pprint(items)
-                    #print(error)
                     self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
                     self.toolLog.append(items)
                     return None
@@ -360,7 +357,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if hasattr(sourceFont.info, "toMathInfo"):
                 infoItems.append((loc, sourceFont.info.toMathInfo()))
             else:
-                infoItems.append((loc, self.mathInfoClass(sourceFont)))
+                infoItems.append((loc, self.mathInfoClass(sourceFont.info)))
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=self.defaultLoc)
         return self._infoMutator
 
