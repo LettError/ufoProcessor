@@ -29,3 +29,4 @@ Tests/automatic_testfonts_mutator_fontparts
 Tests/automatic_testfonts_varlib
 Tests/automatic_testfonts_varlib_defcon
 Tests/automatic_testfonts_varlib_fontparts
+Tests/automatic_testfonts*

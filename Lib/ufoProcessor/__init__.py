@@ -635,10 +635,15 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
                 # merge them again
                 infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
+            if self.roundGeometry:
+                try:
+                    infoInstanceObject = infoInstanceObject.round()
+                except AttributeError:
+                    pass
             infoInstanceObject.extractInfo(font.info)
             font.info.familyName = instanceDescriptor.familyName
             font.info.styleName = instanceDescriptor.styleName
-            font.info.postScriptFontName = instanceDescriptor.postScriptFontName
+            font.info.postscriptFontName = instanceDescriptor.postScriptFontName # yikes, note the differences in capitalisation..
             font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
             font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
             # NEED SOME HELP WITH THIS
@@ -738,7 +743,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                         sourceGlyph = MathGlyph(m[sourceGlyphName])
                     sourceGlyphLocation = glyphMaster.get("location")
                     items.append((Location(sourceGlyphLocation), sourceGlyph))
-                print("UFOProcessor.getVariationModel 4")
                 bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
             try:
                 if not self.isAnisotropic(glyphInstanceLocation):
@@ -791,7 +795,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         #        pass
         #    pass
         # store designspace location in the font.lib
-        font.lib['designspace'] = list(instanceDescriptor.location.items())
+        font.lib['designspace.location'] = list(instanceDescriptor.location.items())
         return font
 
     def isAnisotropic(self, location):

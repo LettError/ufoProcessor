@@ -125,6 +125,13 @@ def _makeTestFonts(rootPath):
     f2.info.copyright = u"This is the copyright notice from master 2"
     f1.lib['ufoProcessor.test.lib.entry'] = "Lib entry for master 1"
     f2.lib['ufoProcessor.test.lib.entry'] = "Lib entry for master 2"
+    
+    f1.info.postscriptBlueValues = [100, 110]
+    f2.info.postscriptBlueValues = [120, 125]
+    f1.info.postscriptBlueFuzz = 0
+    f2.info.postscriptBlueFuzz = 1
+    f1.info.postscriptBlueScale = 0.11  # should not round
+    f1.info.postscriptBlueScale = 0.22
 
     f1.groups["public.kern1.groupA"] = ['glyphOne', 'glyphTwo']
     f1.groups["public.kern2.groupB"] = ['glyphThree', 'glyphFour']
@@ -232,8 +239,9 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
 
     d.findDefault()
     
-    for counter in range(3):
-        factor = counter / 2        
+    steps = 6
+    for counter in range(steps):
+        factor = counter / steps        
         i = InstanceDescriptor()
         v = a.minimum+factor*(a.maximum-a.minimum)
         i.path = i1 % v
@@ -243,6 +251,7 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
         i.location = dict(pop=v)
         i.info = True
         i.kerning = True
+        i.postScriptFontName = "TestFamily PSName %s" % i.styleName
         if counter == 2:
             i.glyphs['glyphTwo'] = dict(name="glyphTwo", mute=True)
             i.copyLib = True
@@ -278,7 +287,7 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
 
     d.write(docPath)
 
-def _testGenerateInstances(docPath, useVarlib=True, useDefcon=True):
+def _testGenerateInstances(docPath, useVarlib=True, useDefcon=True, roundGeometry=False):
     # execute the test document
     if useDefcon:
         d = DesignSpaceProcessor_using_defcon(useVarlib=useVarlib)
@@ -286,6 +295,7 @@ def _testGenerateInstances(docPath, useVarlib=True, useDefcon=True):
         d = DesignSpaceProcessor_using_fontparts(useVarlib=useVarlib)
     d.read(docPath)
     d.loadFonts()
+    d.roundGeometry = roundGeometry
     objectFlavor = [type(f).__name__ for f in d.fonts.values()][0]
     print("objectFlavor", objectFlavor)
     d.generateUFO()
@@ -391,27 +401,32 @@ selfTest = True
 if selfTest:
     for extension in ['mutator', 'varlib']:
         for objectFlavor in ['defcon', 'fontparts']:
-            # which object model to use for **executuing** the designspace.
-            # all the objects in **this test** are defcon. 
+            for roundGeometry in [True, False]:
+                # which object model to use for **executuing** the designspace.
+                # all the objects in **this test** are defcon. 
 
-            print("\n\nRunning the test with ", extension, "and", objectFlavor)
-            print("-"*40)
-            USEVARLIBMODEL = extension == 'varlib'
-            testRoot = os.path.join(os.getcwd(), "automatic_testfonts_%s_%s" % (extension, objectFlavor))
-            print("\ttestRoot", testRoot)
-            if os.path.exists(testRoot):
-                shutil.rmtree(testRoot)
-            docPath = os.path.join(testRoot, "automatic_test.designspace")
-            print("\tdocPath", docPath)
-            print("-"*40)
-            print("Generate document, masters")
-            _makeTestDocument(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
-            print("-"*40)
-            print("Generate instances")
-            _testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
-            testSwap(docPath)
-            #_makeTestDocument(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
-            #_testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
+                print("\n\nRunning the test with ", extension, "and", objectFlavor, "roundGeometry:", roundGeometry)
+                print("-"*40)
+                USEVARLIBMODEL = extension == 'varlib'
+                if roundGeometry:
+                    roundingTag = "_rounded_geometry"
+                else:
+                    roundingTag = ""
+                testRoot = os.path.join(os.getcwd(), "automatic_testfonts_%s_%s%s" % (extension, objectFlavor, roundingTag))
+                print("\ttestRoot", testRoot)
+                if os.path.exists(testRoot):
+                    shutil.rmtree(testRoot)
+                docPath = os.path.join(testRoot, "automatic_test.designspace")
+                print("\tdocPath", docPath)
+                print("-"*40)
+                print("Generate document, masters")
+                _makeTestDocument(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
+                print("-"*40)
+                print("Generate instances")
+                _testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon", roundGeometry=roundGeometry)
+                testSwap(docPath)
+                #_makeTestDocument(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
+                #_testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
 
 
 testAxisMuting()
