@@ -31,6 +31,7 @@ setup(
         "fontMath>=0.4.8",
         "fontParts>=0.8.2",
         "fontTools[ufo,lxml]>=3.32.0",
+        "mutatorMath>=2.1.2",
     ],
     classifiers=[
         "Development Status :: 4 - Beta",
