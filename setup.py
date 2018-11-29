@@ -28,7 +28,7 @@ setup(
     setup_requires=wheel + ["setuptools_scm"],
     install_requires=[
         "defcon[lxml]>=0.6.0",
-        "fontMath>=0.4.8",
+        "fontMath>=0.4.9",
         "fontParts>=0.8.2",
         "fontTools[ufo,lxml]>=3.32.0",
         "mutatorMath>=2.1.2",
