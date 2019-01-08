@@ -722,6 +722,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             neutral = glyphMutator.get(())
             if neutral is not None:
                 uniValues = neutral[0].unicodes
+            else:
+                neutralFont = self.getNeutralFont()
+                if glyphName in neutralFont:
+                    uniValues = neutralFont[glyphName].unicodes
             glyphInstanceUnicodes = glyphData.get("unicodes", uniValues)
             note = glyphData.get("note")
             if note:
