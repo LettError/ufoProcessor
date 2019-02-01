@@ -217,14 +217,23 @@ class SuperpolatorReader(LogMixin):
     def readInstances(self):
         for instanceCount, instanceElement in enumerate(self.root.findall(".instance")):
             instanceObject = self.instanceDescriptorClass()
-            instanceObject.familyName = instanceElement.attrib.get("familyname")
-            instanceObject.styleName = instanceElement.attrib.get("stylename")
+            if instanceElement.attrib.get("familyname"):
+                instanceObject.setFamilyName(instanceElement.attrib.get("familyname"), "en")    # superpolator only got one language
+            if instanceElement.attrib.get("stylename"):
+                instanceObject.setStyleName(instanceElement.attrib.get("stylename"), "en")
+            if instanceElement.attrib.get("styleMapFamilyName"):
+                instanceObject.styleMapFamilyName = instanceElement.attrib.get("styleMapFamilyName")
+            if instanceElement.attrib.get("styleMapStyleName"):
+                instanceObject.styleMapStyleName = instanceElement.attrib.get("styleMapStyleName")
             instanceObject.location = self.locationFromElement(instanceElement)
             instanceObject.filename = instanceElement.attrib.get('filename')
 
-            for libElement in instanceObject.findall('.provideLib'):
+            for libElement in instanceElement.findall('.provideLib'):
                 if libElement.attrib.get('state') == '1':
-                    instanceObject.copyLib = True
+                    instanceObject.lib = True
+            for libElement in instanceElement.findall('.provideInfo'):
+                if libElement.attrib.get('state') == '1':
+                    instanceObject.info = True
             self.documentObject.instances.append(instanceObject)
 
 if __name__ == "__main__":
@@ -251,6 +260,7 @@ if __name__ == "__main__":
     # get the sources
     print("reader.documentObject.sources: %d items" % len(reader.documentObject.sources))
     for sd in reader.documentObject.sources:
+        print(sd.familyName)
         assert sd.familyName == "MutatorMathTest_SourceFamilyName"
         if sd.styleName == "Default":
             assert sd.location == {'width': 0.0, 'weight': 0.0, 'space': 0.0, 'grade': -0.5}
@@ -268,15 +278,18 @@ if __name__ == "__main__":
     # get the instances
     print("reader.documentObject.instances: %d items" % len(reader.documentObject.instances))
     for nd in reader.documentObject.instances:
-        assert nd.familyName == "MutatorMathTest_InstanceFamilyName"
+        assert nd.getFamilyName() == "MutatorMathTest_InstanceFamilyName"
         if nd.styleName == "AWeightThatILike":
             assert nd.location == {'width': 133.152174, 'weight': 723.981097, 'space': 0.0, 'grade': -0.5}
             assert nd.filename == "instances/MutatorMathTest-AWeightThatILike.ufo"
-        if nd.styleName == "wdth759.79_SPCE0.00_wght260.72":
+            assert nd.styleMapFamilyName == None
+            assert nd.styleMapStyleName == None
+        if nd.getStyleName() == "wdth759.79_SPCE0.00_wght260.72":
             # note the anisotropic location in the width axis.
             assert nd.location == {'width': (500.0, 800.0), 'weight': 260.7217, 'space': 0.0, 'grade': -0.5}
-            assert nd.filename =="instances/MutatorMathTest-wdth759.79_SPCE0.00_wght260.72.ufo"
-        print(nd.filename)
+            assert nd.filename == "instances/MutatorMathTest_InstanceFamilyName-wdth759.79_SPCE0.00_wght260.72.ufo"
+            assert nd.styleMapFamilyName == "StyleMappedFamily"
+            assert nd.styleMapStyleName == "bold"
 
 
 
