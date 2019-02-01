@@ -27,13 +27,8 @@ class SuperpolatorReader(LogMixin):
         tree = ET.parse(self.path)
         self.root = tree.getroot()
         self.documentObject.formatVersion = self.root.attrib.get("format", "3.0")
-        #self._axes = []
-        #self.rules = []
-        #self.sources = []
-        #self.instances = []
         self.axisDefaults = {}
         self._strictAxisNames = True
-        print(tree)
 
     @classmethod
     def fromstring(cls, string, documentObject):
@@ -48,7 +43,6 @@ class SuperpolatorReader(LogMixin):
         self.readRules()
         self.readSources()
         self.readInstances()
-        #self.readLib()
 
     def readData(self):
         # read superpolator specific data, view prefs etc.
@@ -71,10 +65,63 @@ class SuperpolatorReader(LogMixin):
         if newLib:
             self.documentObject.lib[superpolatorDataLibKey] = newLib
 
-
     def readRules(self):
         # read the simple rule elements
-        pass
+        rulesContainerElements = self.root.findall(".simplerules")
+        print('rulesContainerElements', rulesContainerElements)
+        rules = []
+        for rulesContainerElement in rulesContainerElements:
+            for ruleElement in rulesContainerElement:
+                ruleObject = self.ruleDescriptorClass()
+                ruleName = ruleObject.name = ruleElement.attrib['name']
+                print('rule', ruleName)
+                # subs
+                for subElement in ruleElement.findall('.sub'):
+                    a = subElement.attrib['name']
+                    b = subElement.attrib['with']
+                    ruleObject.subs.append((a, b))
+                # condition sets, .sp3 had none
+                externalConditions = self._readConditionElements(
+                    ruleElement,
+                    ruleName,
+                )
+                print("externalConditions", externalConditions)
+                if externalConditions:
+                    ruleObject.conditionSets.append(externalConditions)
+                    self.log.info(
+                        "Found stray rule conditions outside a conditionset. "
+                        "Wrapped them in a new conditionset."
+                    )
+            print("ruleObject.name", ruleObject.name)
+            rules.append(ruleObject)
+        self.documentObject.rules = rules
+
+    def _readConditionElements(self, parentElement, ruleName=None):
+        # modified from the method from fonttools.designspaceLib
+        # it's not the same!
+        cds = []
+        for conditionElement in parentElement.findall('.condition'):
+            cd = {}
+            cdMin = conditionElement.attrib.get("minimum")
+            if cdMin is not None:
+                cd['minimum'] = float(cdMin)
+            else:
+                # will allow these to be None, assume axis.minimum
+                cd['minimum'] = None
+            cdMax = conditionElement.attrib.get("maximum")
+            if cdMax is not None:
+                cd['maximum'] = float(cdMax)
+            else:
+                # will allow these to be None, assume axis.maximum
+                cd['maximum'] = None
+            cd['name'] = conditionElement.attrib.get("axisname")
+            # # test for things
+            if cd.get('minimum') is None and cd.get('maximum') is None:
+                raise DesignSpaceDocumentError(
+                    "condition missing required minimum or maximum in rule" +
+                    (" '%s'" % ruleName if ruleName is not None else ""))
+            cds.append(cd)
+        return cds
 
     def readAxes(self):
         # read the axes elements, including the warp map.
@@ -87,28 +134,12 @@ class SuperpolatorReader(LogMixin):
             axisObject = self.axisDescriptorClass()
             axisObject.name = axisElement.attrib.get("name")
             axisObject.tag = axisElement.attrib.get("shortname")
-            print("zz", axisObject.tag)
             axisObject.minimum = float(axisElement.attrib.get("minimum"))
             axisObject.maximum = float(axisElement.attrib.get("maximum"))
-            #if axisElement.attrib.get('hidden', False):
-            #    axisObject.hidden = True
             axisObject.default = float(axisElement.attrib.get("initialvalue", axisObject.minimum))
-        #     for mapElement in axisElement.findall('map'):
-        #         a = float(mapElement.attrib['input'])
-        #         b = float(mapElement.attrib['output'])
-        #         axisObject.map.append((a, b))
-        #     for labelNameElement in axisElement.findall('labelname'):
-        #         # Note: elementtree reads the xml:lang attribute name as
-        #         # '{http://www.w3.org/XML/1998/namespace}lang'
-        #         for key, lang in labelNameElement.items():
-        #             if key == XML_LANG:
-        #                 labelName = labelNameElement.text
-        #                 axisObject.labelNames[lang] = labelName
-            print(axisObject.serialize())
             self.documentObject.axes.append(axisObject)
             self.axisDefaults[axisObject.name] = axisObject.default
         self.documentObject.defaultLoc = self.axisDefaults
-        print("self.documentObject.defaultLoc", self.documentObject.defaultLoc)
 
     def colorFromElement(self, element):
         elementColor = None
@@ -177,9 +208,6 @@ class SuperpolatorReader(LogMixin):
             if styleName is not None:
                 sourceObject.styleName = styleName
             sourceObject.location = self.locationFromElement(sourceElement)
-            # layerName = sourceElement.attrib.get('layer')
-            # if layerName is not None:
-            #     sourceObject.layerName = layerName
             for libElement in sourceElement.findall('.provideLib'):
                 if libElement.attrib.get('state') == '1':
                     sourceObject.copyLib = True
@@ -189,8 +217,6 @@ class SuperpolatorReader(LogMixin):
             for infoElement in sourceElement.findall(".provideInfo"):
                 if infoElement.attrib.get('state') == '1':
                     sourceObject.copyInfo = True
-            #     if infoElement.attrib.get('mute') == '1':
-            #         sourceObject.muteInfo = True
             for featuresElement in sourceElement.findall(".provideFeatures"):
                 if featuresElement.attrib.get('state') == '1':
                     sourceObject.copyFeatures = True
@@ -200,34 +226,23 @@ class SuperpolatorReader(LogMixin):
                     continue
                 if glyphElement.attrib.get('mute') == '1':
                     sourceObject.mutedGlyphNames.append(glyphName)
-            # for kerningElement in sourceElement.findall(".kerning"):
-            #     if kerningElement.attrib.get('mute') == '1':
-            #         sourceObject.muteKerning = True
-            # self.documentObject.sources.append(sourceObject)
-            
-            #print("sourceName", sourceName)
-            #print("\tsourcePath", sourcePath)
-            #print("\tsourceObject.styleName", sourceObject.styleName)
-            #print("\tsourceObject.familyName", sourceObject.familyName)
-            #print("\tsourceObject.location", sourceObject.location)
-            #print("\tsourceObject.copyLib", sourceObject.copyLib)
-            #print("\tsourceObject.copyGroups", sourceObject.copyGroups)
             self.documentObject.sources.append(sourceObject)
 
     def readInstances(self):
         for instanceCount, instanceElement in enumerate(self.root.findall(".instance")):
             instanceObject = self.instanceDescriptorClass()
             if instanceElement.attrib.get("familyname"):
-                instanceObject.setFamilyName(instanceElement.attrib.get("familyname"), "en")    # superpolator only got one language
+                instanceObject.familyName = instanceElement.attrib.get("familyname")
             if instanceElement.attrib.get("stylename"):
-                instanceObject.setStyleName(instanceElement.attrib.get("stylename"), "en")
+                instanceObject.styleName = instanceElement.attrib.get("stylename")
             if instanceElement.attrib.get("styleMapFamilyName"):
                 instanceObject.styleMapFamilyName = instanceElement.attrib.get("styleMapFamilyName")
             if instanceElement.attrib.get("styleMapStyleName"):
                 instanceObject.styleMapStyleName = instanceElement.attrib.get("styleMapStyleName")
+            if instanceElement.attrib.get("styleMapFamilyName"):
+                instanceObject.styleMapFamilyName = instanceElement.attrib.get("styleMapFamilyName")
             instanceObject.location = self.locationFromElement(instanceElement)
             instanceObject.filename = instanceElement.attrib.get('filename')
-
             for libElement in instanceElement.findall('.provideLib'):
                 if libElement.attrib.get('state') == '1':
                     instanceObject.lib = True
@@ -242,7 +257,7 @@ if __name__ == "__main__":
     reader = SuperpolatorReader(testPath, testDoc)
     reader.read()
 
-    # get the axes
+    # check the axes
     names = [a.name for a in reader.documentObject.axes]
     names.sort()
     assert names == ['grade', 'space', 'weight', 'width']
@@ -250,17 +265,15 @@ if __name__ == "__main__":
     tags.sort()
     assert tags == ['SPCE', 'grad', 'wdth', 'wght']
 
-
-    # get the data items
+    # check the data items
     assert superpolatorDataLibKey in reader.documentObject.lib
     items = list(reader.documentObject.lib[superpolatorDataLibKey].items())
     items.sort()
     assert items == [('expandRules', False), ('horizontalPreviewAxis', 'width'), ('includeLegacyRules', False), ('instancefolder', 'instances'), ('keepWorkFiles', True), ('lineInverted', True), ('lineStacked', 'lined'), ('lineViewFilled', True), ('outputFormatUFO', 3.0), ('previewtext', 'VA'), ('roundGeometry', False), ('verticalPreviewAxis', 'weight')]
 
-    # get the sources
+    # check the sources
     print("reader.documentObject.sources: %d items" % len(reader.documentObject.sources))
     for sd in reader.documentObject.sources:
-        print(sd.familyName)
         assert sd.familyName == "MutatorMathTest_SourceFamilyName"
         if sd.styleName == "Default":
             assert sd.location == {'width': 0.0, 'weight': 0.0, 'space': 0.0, 'grade': -0.5}
@@ -275,23 +288,35 @@ if __name__ == "__main__":
             assert sd.copyInfo == False
             assert sd.copyFeatures == False
 
-    # get the instances
+    # check the instances
     print("reader.documentObject.instances: %d items" % len(reader.documentObject.instances))
     for nd in reader.documentObject.instances:
-        assert nd.getFamilyName() == "MutatorMathTest_InstanceFamilyName"
+        assert nd.familyName == "MutatorMathTest_InstanceFamilyName"
         if nd.styleName == "AWeightThatILike":
             assert nd.location == {'width': 133.152174, 'weight': 723.981097, 'space': 0.0, 'grade': -0.5}
-            assert nd.filename == "instances/MutatorMathTest-AWeightThatILike.ufo"
+            assert nd.filename == "instances/MutatorMathTest_InstanceFamilyName-AWeightThatILike.ufo"
             assert nd.styleMapFamilyName == None
             assert nd.styleMapStyleName == None
-        if nd.getStyleName() == "wdth759.79_SPCE0.00_wght260.72":
+        if nd.styleName == "wdth759.79_SPCE0.00_wght260.72":
             # note the anisotropic location in the width axis.
             assert nd.location == {'width': (500.0, 800.0), 'weight': 260.7217, 'space': 0.0, 'grade': -0.5}
             assert nd.filename == "instances/MutatorMathTest_InstanceFamilyName-wdth759.79_SPCE0.00_wght260.72.ufo"
             assert nd.styleMapFamilyName == "StyleMappedFamily"
             assert nd.styleMapStyleName == "bold"
 
+    # check the rules
+    for rd in reader.documentObject.rules:
+        assert rd.name == "width: < 500.0"
+        assert len(rd.conditionSets) == 1
+        assert rd.subs == [('I', 'I.narrow')]
+        for conditionSet in rd.conditionSets:
+            for cd in conditionSet:
+                print(cd)
+                if cd['name'] == "width":
+                    assert cd == {'minimum': None, 'maximum': 500.0, 'name': 'width'}
+                if cd['name'] == "grade":
+                    assert cd == {'minimum': 0.0, 'maximum': 500.0, 'name': 'grade'}
 
 
-    #testDoc.write(path.replace(".sp3", "_roundtripped.designspace"))
+    testDoc.write(testPath.replace(".sp3", "_output_roundtripped.designspace"))
 

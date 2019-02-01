@@ -23,6 +23,7 @@
         <simplerule enabled="1" name="width: &lt; 500.0">
             <sub name="I" with="I.narrow"/>
             <condition axisname="width" maximum="500"/>
+            <condition axisname="grade" minimum="0" maximum="500"/>
         </simplerule>
     </simplerules>
     <!-- axis definitions -->
@@ -64,7 +65,7 @@
         <maskedfont font="1"/>
     </master>
     <!-- instance definitions -->
-    <instance familyname="MutatorMathTest_InstanceFamilyName" filename="instances/MutatorMathTest_InstanceFamilyName-AWeightThatILike.ufo" sortorder="2" stylename="AWeightThatILike">
+    <instance familyname="MutatorMathTest_InstanceFamilyName" filename="instances/MutatorMathTest_InstanceFamilyName-AWeightThatILike.ufo" sortorder="2" stylename="AWeightThatILike" postscriptfontname="SomePostscriptName" >
         <location>
             <dimension name="grade" xvalue="-0.500000"/>
             <dimension name="width" xvalue="133.152174"/>
