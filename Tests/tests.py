@@ -133,6 +133,13 @@ def _makeTestFonts(rootPath):
     f1.info.postscriptBlueScale = 0.11  # should not round
     f1.info.postscriptBlueScale = 0.22
 
+    f1.info.openTypeHheaAscender = 1036
+    f1.info.openTypeHheaDescender = -335
+    f1.info.openTypeOS2TypoAscender = 730
+    f1.info.openTypeOS2TypoDescender = -270
+    f1.info.openTypeOS2WinAscent = 1036
+    f1.info.openTypeOS2WinDescent = 335
+
     f1.groups["public.kern1.groupA"] = ['glyphOne', 'glyphTwo']
     f1.groups["public.kern2.groupB"] = ['glyphThree', 'glyphFour']
     f2.groups.update(f1.groups)
