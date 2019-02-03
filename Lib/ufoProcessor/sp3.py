@@ -62,16 +62,18 @@ class SuperpolatorReader(LogMixin):
     sourceDescriptorClass = SourceDescriptor
     instanceDescriptorClass = InstanceDescriptor
 
-    def __init__(self, documentPath, documentObject, convertRules=True, convertData=True):
+    def __init__(self, documentPath, documentObject, convertRules=True, convertData=True, anisotropic=False):
         self.path = documentPath
         self.documentObject = documentObject
         self.convertRules = convertRules
         self.convertData = convertData
+        self.allowAnisotropic = anisotropic # maybe add conversion options later
         tree = ET.parse(self.path)
         self.root = tree.getroot()
         self.documentObject.formatVersion = self.root.attrib.get("format", "3.0")
         self.axisDefaults = {}
         self._strictAxisNames = True
+
 
     @classmethod
     def fromstring(cls, string, documentObject):
@@ -192,8 +194,6 @@ class SuperpolatorReader(LogMixin):
                     continue
                 cds.append(cd)
             if cds:
-                print("oldRuleElement", axisName, operator, oldRuleElement.attrib.items())
-                print('cds',cds)
                 ruleObject.conditionSets.append(cds)
                 self.documentObject.addRule(ruleObject)
 
@@ -209,7 +209,6 @@ class SuperpolatorReader(LogMixin):
 
 
         rulesContainerElements = self.root.findall(".simplerules")
-        #print('rulesContainerElements', rulesContainerElements)
         rules = []
         for rulesContainerElement in rulesContainerElements:
             for ruleElement in rulesContainerElement:
@@ -258,7 +257,6 @@ class SuperpolatorReader(LogMixin):
                     "condition missing required minimum or maximum in rule" +
                     (" '%s'" % ruleName if ruleName is not None else ""))
             cds.append(cd)
-        print('\t\t_readConditionElements', cds)
         return cds
 
     def readAxes(self):
@@ -284,7 +282,6 @@ class SuperpolatorReader(LogMixin):
             elementColor = self.readColorElement(colorElement)
 
     def readColorElement(self, colorElement):
-        print("colorElement", colorElement)
         pass
 
     def locationFromElement(self, element):
@@ -292,6 +289,15 @@ class SuperpolatorReader(LogMixin):
         for locationElement in element.findall('.location'):
             elementLocation = self.readLocationElement(locationElement)
             break
+        if not self.allowAnisotropic:
+            # don't want any anisotropic values here
+            split = {}
+            for k, v in elementLocation.items():
+                if type(v) == type(()):
+                    split[k] = v[0]
+                else:
+                    split[k] = v
+            elementLocation = split
         return elementLocation
 
     def readLocationElement(self, locationElement):
@@ -432,7 +438,6 @@ if __name__ == "__main__":
         assert items == [('expandRules', False), ('horizontalPreviewAxis', 'width'), ('includeLegacyRules', False), ('instancefolder', 'instances'), ('keepWorkFiles', True), ('lineInverted', True), ('lineStacked', 'lined'), ('lineViewFilled', True), ('outputFormatUFO', 3.0), ('previewtext', 'VA'), ('roundGeometry', False), ('verticalPreviewAxis', 'weight')]
 
         # check the sources
-        print("reader.documentObject.sources: %d items" % len(reader.documentObject.sources))
         for sd in reader.documentObject.sources:
             assert sd.familyName == "MutatorMathTest_SourceFamilyName"
             if sd.styleName == "Default":
@@ -449,7 +454,6 @@ if __name__ == "__main__":
                 assert sd.copyFeatures == False
 
         # check the instances
-        print("reader.documentObject.instances: %d items" % len(reader.documentObject.instances))
         for nd in reader.documentObject.instances:
             assert nd.familyName == "MutatorMathTest_InstanceFamilyName"
             if nd.styleName == "AWeightThatILike":
@@ -458,8 +462,8 @@ if __name__ == "__main__":
                 assert nd.styleMapFamilyName == None
                 assert nd.styleMapStyleName == None
             if nd.styleName == "wdth759.79_SPCE0.00_wght260.72":
-                # note the anisotropic location in the width axis.
-                assert nd.location == {'width': (500.0, 800.0), 'weight': 260.7217, 'space': 0.0, 'grade': -0.5}
+                # note the converted anisotropic location in the width axis.
+                assert nd.location == {'grade': -0.5, 'width': 500.0, 'weight': 260.7217, 'space': 0.0}
                 assert nd.filename == "instances/MutatorMathTest_InstanceFamilyName-wdth759.79_SPCE0.00_wght260.72.ufo"
                 assert nd.styleMapFamilyName == "StyleMappedFamily"
                 assert nd.styleMapStyleName == "bold"
@@ -484,7 +488,7 @@ if __name__ == "__main__":
         # no tests
         root = "../../Tests/spReader_testdocs/test*.sp3"
         for path in glob.glob(root):
-            print("----", path)
             sp3_to_designspace(path)
 
-    test_testDocs()
+    test_superpolator_testdoc1()
+    #test_testDocs()
