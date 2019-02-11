@@ -116,6 +116,7 @@ def _makeTestFonts(rootPath):
     f2 = Font()
     fillInfo(f2)
     addGlyphs(f2, 500, addSupportLayer=True)
+    addExtraGlyph(f2, "extra.glyph.for.master2")
     f2.features.text = u"# features text from master 2"
     f1.info.ascender = 400
     f1.info.descender = -200
