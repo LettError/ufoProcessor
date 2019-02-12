@@ -54,8 +54,8 @@
     <instance familyname="MutatorMathTest_InstanceFamilyName" stylename="wdth759.79_SPCE0.00_wght260.72" filename="instances/MutatorMathTest_InstanceFamilyName-wdth759.79_SPCE0.00_wght260.72.ufo" stylemapfamilyname="StyleMappedFamily" stylemapstylename="bold">
       <location>
         <dimension name="grade" xvalue="-0.500000"/>
-        <dimension name="width" xvalue="500"/>
-        <dimension name="weight" xvalue="260.721700"/>
+        <dimension name="width" xvalue="500" yvalue="800"/>
+        <dimension name="weight" xvalue="260.721700" yvalue="100"/>
         <dimension name="space" xvalue="0"/>
       </location>
       <kerning/>

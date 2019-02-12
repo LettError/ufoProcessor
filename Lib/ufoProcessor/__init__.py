@@ -569,12 +569,15 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         if self._fontsLoaded and not reload:
             return
         names = set()
-        for sourceDescriptor in self.sources:
+        for i, sourceDescriptor in enumerate(self.sources):
+            if sourceDescriptor.name is None:
+                # make sure it has a unique name
+                sourceDescriptor.name = "master.%d" % i
             if sourceDescriptor.name not in self.fonts:
                 if os.path.exists(sourceDescriptor.path):
                     self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
                     self.problems.append("loaded master from %s, layer %s, format %d" % (sourceDescriptor.path, sourceDescriptor.layerName, getUFOVersion(sourceDescriptor.path)))
-                    names = names | set(self.fonts[sourceDescriptor.name].keys())
+                    names |= set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
                     self.problems.append("source ufo not found at %s" % (sourceDescriptor.path))
