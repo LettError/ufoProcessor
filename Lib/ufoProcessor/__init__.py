@@ -669,6 +669,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 if self.fonts[sourceDescriptor.name] is not None:
                     for key, value in self.fonts[sourceDescriptor.name].lib.items():
                         font.lib[key] = value
+            if sourceDescriptor.copyGroups:
+                if self.fonts[sourceDescriptor.name] is not None:
+                    for key, value in self.fonts[sourceDescriptor.name].groups.items():
+                        font.groups[key] = value
             if sourceDescriptor.copyFeatures:
                 if self.fonts[sourceDescriptor.name] is not None:
                     featuresText = self.fonts[sourceDescriptor.name].features.text
