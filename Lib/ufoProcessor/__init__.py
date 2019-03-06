@@ -297,7 +297,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if instanceDescriptor.path is None:
                 continue
             font = self.makeInstance(instanceDescriptor, processRules, glyphNames=glyphNames, pairs=pairs, bend=bend)
-            folder = os.path.dirname(instanceDescriptor.path)
+            folder = os.path.dirname(os.path.abspath(instanceDescriptor.path))
             path = instanceDescriptor.path
             if not os.path.exists(folder):
                 os.makedirs(folder)
