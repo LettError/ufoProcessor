@@ -760,7 +760,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     horizontalGlyphInstanceObject = glyphMutator.makeInstance(horizontal, bend=bend)
                     verticalGlyphInstanceObject = glyphMutator.makeInstance(vertical, bend=bend)
                     # merge them again
-                    glyphInstanceObject = (0,1)*horizontalGlyphInstanceObject + (1,0)*verticalGlyphInstanceObject
+                    glyphInstanceObject = (1,0)*horizontalGlyphInstanceObject + (0,1)*verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
                 continue
