@@ -608,8 +608,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             anisotropic = True
             locHorizontal, locVertical = self.splitAnisotropic(loc)
         # groups
-        renameMap = getattr(self.fonts[self.default.name], "kerningGroupConversionRenameMaps", {})
-        font.kerningGroupConversionRenameMaps = renameMap if renameMap is not None else {}
+        renameMap = getattr(self.fonts[self.default.name], "kerningGroupConversionRenameMaps", None)
+        font.kerningGroupConversionRenameMaps = renameMap if renameMap is not None else {'side1': {}, 'side2': {}}
         # make the kerning
         # this kerning is always horizontal. We can take the horizontal location
         # filter the available pairs?
