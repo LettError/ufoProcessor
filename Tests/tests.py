@@ -206,7 +206,7 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
     a.maximum = 1000
     a.default = 0
     a.tag = "pop*"
-    a.map = [(500,250)]
+    a.map = [(0,0),(500,250),(1000,1000)]
     d.addAxis(a)
 
     s1 = SourceDescriptor()
@@ -303,6 +303,7 @@ def _testGenerateInstances(docPath, useVarlib=True, useDefcon=True, roundGeometr
         d = DesignSpaceProcessor_using_fontparts(useVarlib=useVarlib)
     d.read(docPath)
     d.loadFonts()
+    print('---', d.newDefaultLocation())
     d.roundGeometry = roundGeometry
     objectFlavor = [type(f).__name__ for f in d.fonts.values()][0]
     print("objectFlavor", objectFlavor)
@@ -430,7 +431,7 @@ if selfTest:
                 print("Generate document, masters")
                 _makeTestDocument(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")
                 print("-"*40)
-                print("Generate instances")
+                print("Generate instances", docPath)
                 _testGenerateInstances(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon", roundGeometry=roundGeometry)
                 testSwap(docPath)
                 #_makeTestDocument(docPath, useVarlib=USEVARLIBMODEL, useDefcon=objectFlavor=="defcon")

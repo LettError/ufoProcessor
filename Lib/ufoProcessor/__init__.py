@@ -358,7 +358,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 infoItems.append((loc, sourceFont.info.toMathInfo()))
             else:
                 infoItems.append((loc, self.mathInfoClass(sourceFont.info)))
-        bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=self.defaultLoc)
+        bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=self.newDefaultLocation())
         return self._infoMutator
 
     def getKerningMutator(self, pairs=None):
@@ -400,7 +400,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                         if v is not None:
                             sparseKerning[pair] = v
                     kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
-        bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=self.defaultLoc)
+        bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=self.newDefaultLocation())
         return self._kerningMutator
 
     def filterThisLocation(self, location, mutedAxes):
@@ -442,7 +442,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 new.append((a,self.mathGlyphClass(b)))
         thing = None
         try:
-            bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.defaultLoc)
+            bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.newDefaultLocation())
         except TypeError:
             self.toolLog.append("getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
             self.problems.append("\tCan't make processor for glyph %s" % (glyphName))
@@ -725,6 +725,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 # mute this glyph, skip
                 continue
             glyphInstanceLocation = glyphData.get("instanceLocation", instanceDescriptor.location)
+            glyphInstanceLocation = Location(glyphInstanceLocation)
             uniValues = []
             neutral = glyphMutator.get(())
             if neutral is not None:
@@ -754,7 +755,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                         sourceGlyph = MathGlyph(m[sourceGlyphName])
                     sourceGlyphLocation = glyphMaster.get("location")
                     items.append((Location(sourceGlyphLocation), sourceGlyph))
-                bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.defaultLoc)
+                bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.newDefaultLocation())
             try:
                 if not self.isAnisotropic(glyphInstanceLocation):
                     glyphInstanceObject = glyphMutator.makeInstance(glyphInstanceLocation, bend=bend)
