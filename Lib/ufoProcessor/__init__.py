@@ -137,8 +137,9 @@ def getUFOVersion(ufoPath):
             # </dict>
             # </plist>
     metaInfoPath = os.path.join(ufoPath, "metainfo.plist")
-    p = plistlib.readPlist(metaInfoPath)
-    return p.get('formatVersion')
+    with open(metaInfoPath, 'rb') as f:
+        p = plistlib.load(f)
+        return p.get('formatVersion')
 
 
 def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________swap"):
