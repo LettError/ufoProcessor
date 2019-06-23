@@ -33,3 +33,4 @@ Tests/automatic_testfonts*
 test*.designspace
 test*.sp3
 Tests/_*
+Tests/Instances
