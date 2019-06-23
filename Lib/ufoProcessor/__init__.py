@@ -575,7 +575,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         # we do not want this default location to be mapped.
         loc = collections.OrderedDict()
         for axisDescriptor in self.axes:
-            if mapped:
+            if bend:
                 loc[axisDescriptor.name] = axisDescriptor.map_forward(
                     axisDescriptor.default
                 )

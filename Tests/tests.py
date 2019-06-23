@@ -213,7 +213,7 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
     a.maximum = 1000
     a.default = 0
     a.tag = "pop*"
-    a.map = [(0,0),(500,250),(1000,1000)]
+    a.map = [(0,10),(500,250),(1000,990)]
     d.addAxis(a)
 
     s1 = SourceDescriptor()
@@ -253,7 +253,10 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
     d.addSource(s5)
 
     d.findDefault()
-    
+    # make sure the default location is bend and unbend as we want.
+    assert d.newDefaultLocation().get('pop') == 0
+    assert d.newDefaultLocation(bend=True).get('pop') == 10
+
     steps = 6
     for counter in range(steps):
         factor = counter / steps        
