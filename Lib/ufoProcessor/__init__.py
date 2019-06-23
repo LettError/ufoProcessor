@@ -320,8 +320,12 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             d[a.name] = a.serialize()
         return d
 
-    serializedAxes = property(getSerializedAxes, doc="a list of dicts with the axis values")
+    def _getAxisOrder(self):
+        return [a.name for a in self.axes]
 
+    axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
+    
+    serializedAxes = property(getSerializedAxes, doc="a list of dicts with the axis values")
     def getVariationModel(self, items, axes, bias=None):
         # Return either a mutatorMath or a varlib.model object for calculating.
         try:
@@ -395,12 +399,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     loc = Location(sourceDescriptor.location)
                     # XXX can we get the kern value from the fontparts kerning object?
                     kerningItem = self.mathKerningClass(sourceFont.kerning, sourceFont.groups)
-                    sparseKerning = {}
-                    for pair in pairs:
-                        v = kerningItem.get(pair)
-                        if v is not None:
-                            sparseKerning[pair] = v
-                    kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
+                    if kerningItem is not None:
+                        sparseKerning = {}
+                        for pair in pairs:
+                            v = kerningItem.get(pair)
+                            if v is not None:
+                                sparseKerning[pair] = v
+                        kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=self.newDefaultLocation())
         return self._kerningMutator
 
@@ -564,6 +569,19 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     #    if sd.layerName in candidate.layers:
                     return self.fonts[sd.name]
         return None
+
+    def newDefaultLocation(self, bend=False):
+        # overwrite from fontTools.newDefaultLocation
+        # we do not want this default location to be mapped.
+        loc = collections.OrderedDict()
+        for axisDescriptor in self.axes:
+            if mapped:
+                loc[axisDescriptor.name] = axisDescriptor.map_forward(
+                    axisDescriptor.default
+                )
+            else:
+                loc[axisDescriptor.name] = axisDescriptor.default
+        return loc
 
     def loadFonts(self, reload=False):
         # Load the fonts and find the default candidate based on the info flag
@@ -760,6 +778,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             try:
                 if not self.isAnisotropic(glyphInstanceLocation):
                     glyphInstanceObject = glyphMutator.makeInstance(glyphInstanceLocation, bend=bend)
+                    #print('xxx glyphInstanceObject', glyphInstanceObject)
                 else:
                     # split anisotropic location into horizontal and vertical components
                     horizontal, vertical = self.splitAnisotropic(glyphInstanceLocation)

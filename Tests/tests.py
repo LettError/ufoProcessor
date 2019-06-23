@@ -27,6 +27,7 @@ def addExtraGlyph(font, name, s=200):
 def addGlyphs(font, s, addSupportLayer=True):
     # we need to add the glyphs
     step = 0
+    uni = 95
     for n in ['glyphOne', 'glyphTwo', 'glyphThree', 'glyphFour', 'glyphFive']:
         font.newGlyph(n)
         g = font[n]
@@ -38,6 +39,8 @@ def addGlyphs(font, s, addSupportLayer=True):
         p.closePath()
         g.move((0,s+step))
         g.width = s
+        g.unicode = uni
+        uni += 1
         step += 50
     for n, w in [('wide', 800), ('narrow', 100)]:
         font.newGlyph(n)
@@ -120,8 +123,12 @@ def _makeTestFonts(rootPath):
     f2.features.text = u"# features text from master 2"
     f1.info.ascender = 400
     f1.info.descender = -200
+    f1.info.xHeight = 200
+    f1.info.capHeight = 400
     f2.info.ascender = 600
     f2.info.descender = -100
+    f2.info.xHeight = 200
+    f2.info.capHeight = 600
     f1.info.copyright = u"This is the copyright notice from master 1"
     f2.info.copyright = u"This is the copyright notice from master 2"
     f1.lib['ufoProcessor.test.lib.entry'] = "Lib entry for master 1"

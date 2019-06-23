@@ -73,7 +73,11 @@ class VariationModelMutator(object):
         for a in axes:
             self.axes[a.name] = (a.minimum, a.default, a.maximum)
         if model is None:
-            self.model = VariationModel([self._normalize(a) for a,b in items], axisOrder=self.axisOrder)
+            dd = [self._normalize(a) for a,b in items]
+            ee = self.axisOrder
+            print('dd', dd)
+            print('ee', ee)
+            self.model = VariationModel(dd, axisOrder=ee)
         else:
             self.model = model
         self.masters = [b for a, b in items]
@@ -105,7 +109,7 @@ class VariationModelMutator(object):
         return items
 
 
-    def makeInstance(self, location, bend=True):
+    def makeInstance(self, location, bend=False):
         # check for anisotropic locations here
         if bend:
             location = self.axisMapper(location)
@@ -145,21 +149,49 @@ if __name__ == "__main__":
         ({'A': 65, 'B': 99}, 1),
     ]
 
-    am = AxisMapper(axes)
-    assert am(dict(A=0)) == {'A': 0.0}
-    assert am(dict(A=50)) == {'A': 25.0}    # one of the steps
-    assert am(dict(A=55)) == {'A': 30.000000000000004}
-    assert am(dict(A=60)) == {'A': 35.0}
-    assert am(dict(A=80)) == {'A': 67.50000000000001}
-    assert am(dict(A=100)) == {'A': 100.0}
+    # am = AxisMapper(axes)
+    # assert am(dict(A=0)) == {'A': 0.0}
+    # assert am(dict(A=50)) == {'A': 25.0}    # one of the steps
+    # assert am(dict(A=55)) == {'A': 30.000000000000004}
+    # assert am(dict(A=60)) == {'A': 35.0}
+    # assert am(dict(A=80)) == {'A': 67.50000000000001}
+    # assert am(dict(A=100)) == {'A': 100.0}
+
+    # mm = VariationModelMutator(items, axes)
+
+    # assert mm.makeInstance(dict(A=0, B=0)) == 0
+    # assert mm.makeInstance(dict(A=100, B=0)) == 10
+    # assert mm.makeInstance(dict(A=0, B=100)) == 10
+    # assert mm.makeInstance(dict(A=100, B=100)) == 0
+    # assert mm.makeInstance(dict(A=50, B=0),bend=False) == 5
+    # assert mm.makeInstance(dict(A=50, B=0),bend=True) == 2.5
+
+    # mm.getReach()
+
+
+
+    a = AxisDescriptor()
+    a.name = "Weight"
+    a.tag = "wght"
+    a.minimum = 0
+    a.default = 1000
+    a.maximum = 1000
+
+    b = AxisDescriptor()
+    b.name = "Width"
+    b.tag = "wdth"
+    b.minimum = 0
+    b.default = 1000
+    b.maximum = 1000
+    axes = [a,b]
+    
+    items = [
+        ({}, 0),
+        ({'Weight': 1000, 'Width': 0}, 20),
+        ({'Weight': 0, 'Width': 1000}, 33),
+        #({'Weight': 1000, 'Width': 1000}, 30),
+        ({'Weight': 0, 'Width': 0}, 40),
+    ]
 
     mm = VariationModelMutator(items, axes)
-
-    assert mm.makeInstance(dict(A=0, B=0)) == 0
-    assert mm.makeInstance(dict(A=100, B=0)) == 10
-    assert mm.makeInstance(dict(A=0, B=100)) == 10
-    assert mm.makeInstance(dict(A=100, B=100)) == 0
-    assert mm.makeInstance(dict(A=50, B=0),bend=False) == 5
-    assert mm.makeInstance(dict(A=50, B=0),bend=True) == 2.5
-
-    mm.getReach()
+    print(mm.makeInstance(dict(Weight=0, Width=0)))
