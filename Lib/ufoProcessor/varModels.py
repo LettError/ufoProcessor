@@ -75,8 +75,6 @@ class VariationModelMutator(object):
         if model is None:
             dd = [self._normalize(a) for a,b in items]
             ee = self.axisOrder
-            print('dd', dd)
-            print('ee', ee)
             self.model = VariationModel(dd, axisOrder=ee)
         else:
             self.model = model
@@ -103,8 +101,8 @@ class VariationModelMutator(object):
         items = []
         for supportIndex, s in enumerate(self.getSupports()):
             sortedOrder = self.model.reverseMapping[supportIndex]
-            print(self.masters[sortedOrder], s)
-            print(self.locations[sortedOrder])
+            print("getReach", self.masters[sortedOrder], s)
+            print("getReach", self.locations[sortedOrder])
             items.append((self.masters[sortedOrder], s))
         return items
 
