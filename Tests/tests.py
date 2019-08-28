@@ -111,6 +111,7 @@ def _makeTestFonts(rootPath):
     path3 = os.path.join(rootPath, "instances", "geometryInstance%3.3f.ufo")
     path4 = os.path.join(rootPath, "anisotropic_instances", "geometryInstanceAnisotropic1.ufo")
     path5 = os.path.join(rootPath, "anisotropic_instances", "geometryInstanceAnisotropic2.ufo")
+    path6 = os.path.join(rootPath, "instances", "extrapolate", "geometryInstance%s.ufo")
     f1 = Font()
     fillInfo(f1)
     addGlyphs(f1, 100, addSupportLayer=False)
@@ -168,7 +169,7 @@ def _makeTestFonts(rootPath):
     _create_parent_dir(path2)
     f1.save(path1, 3)
     f2.save(path2, 3)
-    return path1, path2, path3, path4, path5
+    return path1, path2, path3, path4, path5, path6
 
 def _makeSwapFonts(rootPath):
     """ Make some test fonts that have the kerning problem."""
@@ -201,7 +202,7 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
         extension = "mutator"
     testFontPath = os.path.join(os.path.dirname(docPath), "automatic_testfonts_%s" % extension)
     print("\ttestFontPath:", testFontPath)
-    m1, m2, i1, anisotropicInstancePath1, anisotropicInstancePath2 = _makeTestFonts(testFontPath)
+    m1, m2, i1, anisotropicInstancePath1, anisotropicInstancePath2, extrapolatePath = _makeTestFonts(testFontPath)
     if useDefcon:
         d = DesignSpaceProcessor_using_defcon(useVarlib=useVarlib)
     else:
@@ -277,9 +278,20 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
            i.glyphs['narrow'] = dict(instanceLocation=dict(pop=400), unicodes=[0x123, 0x124, 0x125])
         d.addInstance(i)
 
+    # add extrapolatiing location
+    i = InstanceDescriptor()
+    i.path = extrapolatePath % "TestStyle_Extrapolate"
+    print('i.path', i.path)
+    i.familyName = "TestFamily"
+    i.styleName = "TestStyle_Extrapolate"
+    i.name = "%s-%s" % (i.familyName, i.styleName)
+    i.location = dict(pop=3000)
+    i.info = True
+    i.kerning = True
+    d.addInstance(i)
+
     # add anisotropic locations
     i = InstanceDescriptor()
-    v = a.minimum+0.5*(a.maximum-a.minimum)
     i.path = anisotropicInstancePath1
     i.familyName = "TestFamily"
     i.styleName = "TestStyle_pop_anisotropic1"
@@ -290,7 +302,6 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
     d.addInstance(i)
 
     i = InstanceDescriptor()
-    v = a.minimum+0.5*(a.maximum-a.minimum)
     i.path = anisotropicInstancePath2
     i.familyName = "TestFamily"
     i.styleName = "TestStyle_pop_anisotropic2"
