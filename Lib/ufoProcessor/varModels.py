@@ -114,7 +114,10 @@ class VariationModelMutator(object):
         self.axisMapper = AxisMapper(axes)
         self.axes = {}
         for a in axes:
-            self.axes[a.name] = (a.minimum, a.default, a.maximum)
+            mappedMinimum, mappedDefault, mappedMaximum = a.map_forward(a.minimum), a.map_forward(a.default), a.map_forward(a.maximum)
+            #self.axes[a.name] = (a.minimum, a.default, a.maximum)
+            self.axes[a.name] = (mappedMinimum, mappedDefault, mappedMaximum)
+            
         if model is None:
             dd = [self._normalize(a) for a,b in items]
             ee = self.axisOrder
@@ -168,10 +171,10 @@ if __name__ == "__main__":
     a = AxisDescriptor()
     a.name = "A"
     a.tag = "A___"
-    a.minimum = -100
-    a.default = 0
-    a.maximum = 100
-    a.map = [(-100, 40), (100, 50)]
+    a.minimum = 40
+    a.default = 45
+    a.maximum = 50
+    a.map = [(40, -100), (45,0), (50, 100)]
 
     b = AxisDescriptor()
     b.name = "B"
@@ -184,17 +187,17 @@ if __name__ == "__main__":
     items = [
         ({}, 0),
         #({'A': 50, 'B': 50}, 10),
-        ({'A': -100}, 10),
-        ({'B': 100}, -10),
+        ({'A': 40}, 10),
+        ({'B': 50}, -10),
         #({'B': -100}, -10),    # this will fail, no extrapolating
-        ({'A': 100, 'B': 100}, 22),
+        ({'A': 40, 'B': 50}, 22),
         #({'A': 55, 'B': 75}, 1),
         #({'A': 65, 'B': 99}, 1),
     ]
 
     am = AxisMapper(axes)
     #assert am(dict(A=0)) == {'A': 45}
-    print(am(dict(A=100, B=None)))
+    print(1, am(dict(A=40, B=None)))
     #assert am(dict(A=0, B=100)) == {'A': 45}
 
     # mm = VariationModelMutator(items, axes)
@@ -228,23 +231,28 @@ if __name__ == "__main__":
     axes = [a,b]
     
     aam = AxisMapper(axes)
-    print(aam(dict(Weight=0, Width=0)))
-    print(aam.getMappedAxisValues())
+    print(2, aam({}))
+    print(2, aam(dict(Weight=300, Width=200)))
+    print(2, aam(dict(Weight=0, Width=0)))
+    print(2, 'getMappedAxisValues', aam.getMappedAxisValues())
 
-    print('1', aam.map_forward({'Weight': 0}))
+    print(2, aam.map_forward({'Weight': 0}))
 
     # fine. sources are in user values. Progress.
+    # are they?
     items = [
         ({}, 13),
-        ({'Weight': 300, 'Width': 200}, 20),
-        ({'Weight': 600, 'Width': 800}, 60),
+        ({'Weight': 0, 'Width': 5}, 20),
+        ({'Weight': 1000, 'Width': 10}, 60),
     ]
 
     mm = VariationModelMutator(items, axes)
-    print("_normalize", mm._normalize(dict(Weight=0, Width=1000)))
+    # ok so normalise uses designspace coordinates
+    print(3, "_normalize", mm._normalize(dict(Weight=0, Width=1000)))   
     # oh wow, master locations need to be in user coordinates!?
+    print('mm.makeInstance(dict())', mm.makeInstance(dict()))
     assert mm.makeInstance(dict()) == 13
-    assert mm.makeInstance(dict(Weight=300, Width=800)) == 13
+    assert mm.makeInstance(dict(Weight=0, Width=10)) == 13
 
 
     l = dict(Weight=400, Width=200)

@@ -284,7 +284,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         self.problems = []  # receptacle for problem notifications. Not big enough to break, but also not small enough to ignore.
         self.toolLog = []
 
-    def generateUFO(self, processRules=True, glyphNames=None, pairs=None, bend=True):
+    def generateUFO(self, processRules=True, glyphNames=None, pairs=None, bend=False):
         # makes the instances
         # option to execute the rules
         # make sure we're not trying to overwrite a newer UFO format
@@ -326,6 +326,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
     
     serializedAxes = property(getSerializedAxes, doc="a list of dicts with the axis values")
+    
     def getVariationModel(self, items, axes, bias=None):
         # Return either a mutatorMath or a varlib.model object for calculating.
         try:
@@ -337,7 +338,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     error = traceback.format_exc()
                     self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
                     self.toolLog.append(items)
-                    return None
+                    return {}, None
             else:
                 # use mutatormath model
                 axesForMutator = self.getMutatorAxes()
@@ -345,7 +346,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         except:
             error = traceback.format_exc()
             self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
-            return None
+            return {}, None
 
     def getInfoMutator(self):
         """ Returns a info mutator """
@@ -438,6 +439,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         if cacheKey in self._glyphMutators and fromCache:
             return self._glyphMutators[cacheKey]
         items = self.collectMastersForGlyph(glyphName, decomposeComponents=decomposeComponents)
+        print('\tgetGlyphMutator', items)
         new = []
         for a, b, c in items:
             if hasattr(b, "toMathGlyph"):
@@ -448,7 +450,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 new.append((a,self.mathGlyphClass(b)))
         thing = None
         try:
-            bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.newDefaultLocation())
+            bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.newDefaultLocation(bend=True))
+            print('\tgetGlyphMutator bias', bias)
+            print('\tgetGlyphMutator thing', thing)
         except TypeError:
             self.toolLog.append("getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
             self.problems.append("\tCan't make processor for glyph %s" % (glyphName))
@@ -560,7 +564,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     def getNeutralFont(self):
         # Return a font object for the neutral font
         # self.fonts[self.default.name] ?
-        neutralLoc = self.newDefaultLocation()
+        neutralLoc = self.newDefaultLocation(bend=True)
         for sd in self.sources:
             if sd.location == neutralLoc:
                 if sd.name in self.fonts:
@@ -569,6 +573,25 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     #    if sd.layerName in candidate.layers:
                     return self.fonts[sd.name]
         return None
+
+    def findDefault(self):
+        """Set and return SourceDescriptor at the default location or None.
+
+        The default location is the set of all `default` values in user space of all axes.
+        """
+        self.default = None
+
+        # Convert the default location from user space to design space before comparing
+        # it against the SourceDescriptor locations (always in design space).
+        default_location_design = self.newDefaultLocation(bend=True)
+
+        for sourceDescriptor in self.sources:
+            if sourceDescriptor.location == default_location_design:
+                self.default = sourceDescriptor
+                return sourceDescriptor
+
+        return None
+
 
     def newDefaultLocation(self, bend=False):
         # overwrite from fontTools.newDefaultLocation
@@ -642,24 +665,26 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     self.problems.append("Could not make kerning for %s. %s" % (loc, traceback.format_exc()))
             else:
                 kerningMutator = self.getKerningMutator()
-                kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
-                kerningObject.extractKerning(font)
+                if kerningMutator is not None:
+                    kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
+                    kerningObject.extractKerning(font)
         # make the info
         try:
             infoMutator = self.getInfoMutator()
-            if not anisotropic:
-                infoInstanceObject = infoMutator.makeInstance(loc, bend=bend)
-            else:
-                horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
-                verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
-                # merge them again
-                infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
-            if self.roundGeometry:
-                try:
-                    infoInstanceObject = infoInstanceObject.round()
-                except AttributeError:
-                    pass
-            infoInstanceObject.extractInfo(font.info)
+            if infoMutator is not None:
+                if not anisotropic:
+                    infoInstanceObject = infoMutator.makeInstance(loc, bend=bend)
+                else:
+                    horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
+                    verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
+                    # merge them again
+                    infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
+                if self.roundGeometry:
+                    try:
+                        infoInstanceObject = infoInstanceObject.round()
+                    except AttributeError:
+                        pass
+                infoInstanceObject.extractInfo(font.info)
             font.info.familyName = instanceDescriptor.familyName
             font.info.styleName = instanceDescriptor.styleName
             font.info.postscriptFontName = instanceDescriptor.postScriptFontName # yikes, note the differences in capitalisation..
@@ -708,6 +733,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             try:
                 glyphMutator = self.getGlyphMutator(glyphName)
                 if glyphMutator is None:
+                    self.problems.append("Could not make mutator for glyph %s" % (glyphName))
                     continue
             except:
                 self.problems.append("Could not make mutator for glyph %s %s" % (glyphName, traceback.format_exc()))
@@ -788,6 +814,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     glyphInstanceObject = (1,0)*horizontalGlyphInstanceObject + (0,1)*verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
+                self.problems.append("Quite possibly some sort of data alignment error")
                 continue
             font.newGlyph(glyphName)
             font[glyphName].clear()
