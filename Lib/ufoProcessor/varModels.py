@@ -24,6 +24,12 @@ class AxisMapper(object):
     def __call__(self, location):
         return self.map_forward(location)
 
+    def _normalize(self, location):
+        new = {}
+        for axisName in location.keys():
+            new[axisName] = normalizeLocation(dict(w=location[axisName]), dict(w=self.axes[axisName]))
+        return new
+
     def map_backward(self, location):
         new = {}
         for axisName in location.keys():
@@ -44,61 +50,6 @@ class AxisMapper(object):
             new[axisName] = self.axisDescriptors[axisName].map_forward(location[axisName])
         return new
 
-# process the axis map values
-# class AxisMapper(object):
-#     def __init__(self, axes):
-#         # axes: list of axis axisdescriptors
-#         self.axisOrder = [a.name for a in axes]
-#         self.axes = {}
-#         self.models = {}
-#         self.values = {}
-#         self.models = {}
-#         for a in axes:
-#             self.axes[a.name] = (a.minimum, a.default, a.maximum)
-#         for a in axes:
-#             mapData = a.map
-#             if mapData:
-#                 self._makeWarpFromList(a.name, mapData)
-
-#     def _makeWarpFromList(self, axisName, mapData):
-#         # check for the extremes, add if necessary
-#         # https://github.com/fonttools/fonttools/issues/1655
-#         # assume minimum, default and maximum values to be in user coordinates.
-
-#         #if not sum([a==minimum for a, b in mapData]):
-#         #    mapData = [(minimum,minimum)] + mapData
-#         #if not sum([a==maximum for a, b in mapData]):
-#         #    mapData.append((maximum,maximum))
-#         #if not (default, default) in mapData:
-#         #    mapData.append((default, default))
-
-#         mapLocations = []
-#         mapValues = []
-#         for x, y in mapData:
-#             l = normalizeLocation(dict(w=x), dict(w=[minD,defD,maxD]))
-#             mapLocations.append(l)
-#             mapValues.append(y)
-#         self.models[axisName] = VariationModel(mapLocations, axisOrder=['w'])
-#         self.values[axisName] = mapValues
-
-#     def _normalize(self, location):
-#         new = {}
-#         for axisName in location.keys():
-#             new[axisName] = normalizeLocation(dict(w=location[axisName]), dict(w=self.axes[axisName]))
-#         return new
-
-#     def __call__(self, location):
-#         # bend a location according to the defined warps
-#         nl = self._normalize(location) # ugh!
-#         new = location.copy()
-#         for axisName in location.keys():
-#             if not axisName in self.models:
-#                 continue
-#             bLoc = nl[axisName]
-#             values = self.values[axisName]
-#             value = self.models[axisName].interpolateFromMasters(bLoc, values)
-#             new[axisName] = value
-#         return new
 
 
 class VariationModelMutator(object):

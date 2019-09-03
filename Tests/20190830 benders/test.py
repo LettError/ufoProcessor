@@ -13,9 +13,19 @@
 	* the generated intermediate should have touching shapes, just like master 2
 	* determine if we can get rid of the bend=True/False flags
 
-
+    Suppose the numbers in an axis map are messed up, it's then impossible
+    to find the default.
 """
 
+import importlib
+import ufoProcessor
+importlib.reload(ufoProcessor)
+
+
+import mutatorMath
+print(mutatorMath.__file__)
+import mutatorMath.objects.mutator
+importlib.reload(mutatorMath.objects.mutator)
 from designspaceProblems import DesignSpaceChecker
 import collections
 from ufoProcessor import DesignSpaceProcessor
@@ -30,18 +40,18 @@ dp.loadFonts()
 dsc = DesignSpaceChecker(dp)
 dsc.checkEverything()
 pprint(dsc.problems)
-print(dsc.hasStructuralProblems())
+print('hasStructuralProblems', dsc.hasStructuralProblems())
 
 
 print(dp.newDefaultLocation())
 print(dp.instances)
 print('findDefault', dp.findDefault())
-dp.useVarlib = True
+dp.useVarlib = False
 print('varlib', dp.useVarlib)
 
 default = dp.getNeutralFont()
 print(default.path)
-dp.generateUFO(bend=False)
+dp.generateUFO()
 
 glyphName = "a"
 print('mutator for a', dp.getGlyphMutator(glyphName))
@@ -53,3 +63,13 @@ print('-'*40)
 print('toollog')
 for line in dp.toolLog:
 	print("\t" + line)
+
+
+instancePath = "instances/BenderTest-Intermediate.ufo"
+instance = RFont(instancePath, showUI=False)
+print(instance.info.capHeight)
+print(instance.kerning.items())
+
+from mutatorMath.objects.mutator import Location
+l = Location(test=0)
+print(l.isOrigin())

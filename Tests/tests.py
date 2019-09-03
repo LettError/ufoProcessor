@@ -11,7 +11,7 @@ from ufoProcessor import *
 # Run in regular python of choice, not ready for pytest just yet. 
 # You may ask "why not?" - you may ask indeed.
 
-# make the tests work with defcon as well as fontparts
+# make the tests w ork with defcon as well as fontparts
 
 def addExtraGlyph(font, name, s=200):
     font.newGlyph(name)
@@ -219,7 +219,7 @@ def _makeTestDocument(docPath, useVarlib=True, useDefcon=True):
 
     s1 = SourceDescriptor()
     s1.path = m1
-    s1.location = dict(pop=a.default)
+    s1.location = dict(pop=a.map_forward(a.default))
     s1.name = "test.master.1"
     s1.copyInfo = True
     s1.copyFeatures = True

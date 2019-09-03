@@ -297,7 +297,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for instanceDescriptor in self.instances:
             if instanceDescriptor.path is None:
                 continue
-            font = self.makeInstance(instanceDescriptor, processRules, glyphNames=glyphNames, pairs=pairs, bend=bend)
+            font = self.makeInstance(instanceDescriptor,
+                    processRules,
+                    glyphNames=glyphNames,
+                    pairs=pairs,
+                    bend=bend)
             folder = os.path.dirname(os.path.abspath(instanceDescriptor.path))
             path = instanceDescriptor.path
             if not os.path.exists(folder):
@@ -315,6 +319,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return [a.serialize() for a in self.axes]
 
     def getMutatorAxes(self):
+        # map the axis values?
         d = collections.OrderedDict()
         for a in self.axes:
             d[a.name] = a.serialize()
@@ -364,7 +369,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 infoItems.append((loc, sourceFont.info.toMathInfo()))
             else:
                 infoItems.append((loc, self.mathInfoClass(sourceFont.info)))
-        bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=self.newDefaultLocation())
+        infoBias = self.newDefaultLocation(bend=True)
+        bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=infoBias)
         return self._infoMutator
 
     def getKerningMutator(self, pairs=None):
@@ -407,7 +413,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                             if v is not None:
                                 sparseKerning[pair] = v
                         kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
-        bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=self.newDefaultLocation())
+        kerningBias = self.newDefaultLocation(bend=True)
+        bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=kerningBias)
         return self._kerningMutator
 
     def filterThisLocation(self, location, mutedAxes):
@@ -439,7 +446,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         if cacheKey in self._glyphMutators and fromCache:
             return self._glyphMutators[cacheKey]
         items = self.collectMastersForGlyph(glyphName, decomposeComponents=decomposeComponents)
-        print('\tgetGlyphMutator', items)
         new = []
         for a, b, c in items:
             if hasattr(b, "toMathGlyph"):
@@ -450,9 +456,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 new.append((a,self.mathGlyphClass(b)))
         thing = None
         try:
-            bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.newDefaultLocation(bend=True))
-            print('\tgetGlyphMutator bias', bias)
-            print('\tgetGlyphMutator thing', thing)
+            bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.newDefaultLocation(bend=True)) #xx
         except TypeError:
             self.toolLog.append("getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
             self.problems.append("\tCan't make processor for glyph %s" % (glyphName))
@@ -584,7 +588,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         # Convert the default location from user space to design space before comparing
         # it against the SourceDescriptor locations (always in design space).
         default_location_design = self.newDefaultLocation(bend=True)
-
         for sourceDescriptor in self.sources:
             if sourceDescriptor.location == default_location_design:
                 self.default = sourceDescriptor
@@ -800,11 +803,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                         sourceGlyph = MathGlyph(m[sourceGlyphName])
                     sourceGlyphLocation = glyphMaster.get("location")
                     items.append((Location(sourceGlyphLocation), sourceGlyph))
-                bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.newDefaultLocation())
+                bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.newDefaultLocation(bend=True))
             try:
                 if not self.isAnisotropic(glyphInstanceLocation):
                     glyphInstanceObject = glyphMutator.makeInstance(glyphInstanceLocation, bend=bend)
-                    #print('xxx glyphInstanceObject', glyphInstanceObject)
                 else:
                     # split anisotropic location into horizontal and vertical components
                     horizontal, vertical = self.splitAnisotropic(glyphInstanceLocation)
