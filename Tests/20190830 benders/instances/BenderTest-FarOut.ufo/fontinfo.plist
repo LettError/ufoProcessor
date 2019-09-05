@@ -5,7 +5,7 @@
     <key>ascender</key>
     <integer>750</integer>
     <key>capHeight</key>
-    <integer>997</integer>
+    <integer>700</integer>
     <key>descender</key>
     <integer>-250</integer>
     <key>familyName</key>
@@ -25,7 +25,7 @@
     <key>postscriptStemSnapV</key>
     <array/>
     <key>styleName</key>
-    <string>FarPit</string>
+    <string>FarOut</string>
     <key>unitsPerEm</key>
     <real>1000.0</real>
     <key>xHeight</key>
