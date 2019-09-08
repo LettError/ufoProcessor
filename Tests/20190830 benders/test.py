@@ -26,6 +26,7 @@ import mutatorMath
 print(mutatorMath.__file__)
 import mutatorMath.objects.mutator
 importlib.reload(mutatorMath.objects.mutator)
+from mutatorMath.objects.mutator import Location
 from designspaceProblems import DesignSpaceChecker
 import collections
 from ufoProcessor import DesignSpaceProcessor
@@ -49,8 +50,12 @@ print('findDefault', dp.findDefault())
 dp.useVarlib = False
 print('varlib', dp.useVarlib)
 
+axisMapper = ufoProcessor.varModels.AxisMapper(dp.axes)
+print('axisMapper', axisMapper.getMappedAxisValues())
+r = axisMapper(Location(test=1))
+
 default = dp.getNeutralFont()
-print(default.path)
+print('default.path', default.path)
 dp.generateUFO()
 
 glyphName = "a"
