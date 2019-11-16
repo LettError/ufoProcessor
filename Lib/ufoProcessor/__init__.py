@@ -119,7 +119,6 @@ def build(
         except:
             if logger:
                 logger.exception("ufoProcessor error")
-        #results += document.generateUFO(processRules=processRules)
         reader = None
     return results
 
@@ -595,7 +594,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
         return None
 
-
     def newDefaultLocation(self, bend=False):
         # overwrite from fontTools.newDefaultLocation
         # we do not want this default location to be mapped.
@@ -816,7 +814,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     glyphInstanceObject = (1,0)*horizontalGlyphInstanceObject + (0,1)*verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
-                self.problems.append("Quite possibly some sort of data alignment error")
+                self.problems.append("Quite possibly some sort of data alignment error in %s" % glyphName)
                 continue
             font.newGlyph(glyphName)
             font[glyphName].clear()

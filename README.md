@@ -27,6 +27,47 @@ The easiest way to use ufoProcessor is to call `build(designspacePath)`
 * **outputUFOFormatVersion**:     ufo format for output, default is the current, so 3.
 * **useVarlib**:                  True if you want the geometry to be generated with `varLib.model` instead of `mutatorMath`.
 
+## Examples
+
+Generate all the instances (using the varlib model, no rounding):
+
+```python
+import ufoProcessor
+myPath = "myDesignspace.designspace"
+ufoProcessor.build(myPath)
+```
+
+Generate all the instances (using the varlib model, but round all the geometry to integers):
+
+```python
+import ufoProcessor
+myPath = "myDesignspace.designspace"
+ufoProcessor.build(myPath, roundGeometry=True)
+```
+
+Generate all the instances (using the mutatormath model, no rounding):
+
+```python
+import ufoProcessor
+myPath = "myDesignspace.designspace"
+ufoProcessor.build(myPath, useVarlib=False)
+```
+
+Generate an instance for one glyph, `"A"` at `width=100, weight=200`. (assuming the designspace has those axes and the masters have that glyph)
+
+```python
+import ufoProcessor
+myPath = "myDesignspace.designspace"
+doc = ufoProcessor.DesignSpaceProcessor()
+doc.read(myPath)
+doc.loadFonts()
+glyphMutator = doc.getGlyphMutator("A")
+instance = glyphMutator.makeInstance(Location(width=100, weight=200)
+```
+
+Depending on the setting for `usevarlib`, the `glyphMutator` object returned by `getGlyphMutator` in the example above can either be a `MutatorMath.Mutator`, or a `VariationModelMutator` object. That uses the `fontTools.varLib.models.VariationModel` but it is wrapped and can be called as a Mutator object to generate instances. This way `DesignSpaceProcessor` does not need to know much about which math model it is using.
+
+
 ## Convert Superpolator to designspace
 
 The ufoProcessor.sp3 module has some tools for interpreting Superpolator .sp3 documents. Not all data is migrated. But the important geometry is there. Given that Superpolator can read designspace files, there is hopefully no real need for a writer. Note that this conversion is lossy. 
