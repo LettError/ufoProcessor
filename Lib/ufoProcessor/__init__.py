@@ -328,9 +328,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return [a.name for a in self.axes]
 
     axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
-    
+
     serializedAxes = property(getSerializedAxes, doc="a list of dicts with the axis values")
-    
+
     def getVariationModel(self, items, axes, bias=None):
         # Return either a mutatorMath or a varlib.model object for calculating.
         try:
@@ -864,8 +864,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return False
 
     def splitAnisotropic(self, location):
-        x = {}
-        y = {}
+        x = Location()
+        y = Location()
         for dim, val in location.items():
             if type(val)==tuple:
                 x[dim] = val[0]
