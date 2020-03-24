@@ -380,9 +380,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         if self._kerningMutator and pairs == self._kerningMutatorPairs:
             return self._kerningMutator
         kerningItems = []
+        foregroundLayers = [None, 'foreground', 'public.default']
         if pairs is None:
             for sourceDescriptor in self.sources:
-                if sourceDescriptor.layerName is not None:
+                if sourceDescriptor.layerName not in foregroundLayers:
                     continue
                 if not sourceDescriptor.muteKerning:
                     loc = Location(sourceDescriptor.location)
