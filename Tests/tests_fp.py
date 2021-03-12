@@ -42,7 +42,7 @@ def addGlyphs(font, s, addSupportLayer=True):
     if addSupportLayer:
         font.newLayer('support')
         print(n for n in font.layers if n.name == 'support')
-        layer = font.layers['support']
+        layer = font.getLayer('support')
         layer.newGlyph('glyphFive')
         layer.newGlyph('glyphOne')  # add an empty glyph to see how it is treated
         lg = layer['glyphFive']
