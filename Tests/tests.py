@@ -52,6 +52,11 @@ def addGlyphs(font, s, addSupportLayer=True):
         p.lineTo((0,font.info.ascender))
         p.closePath()
         g.width = w
+        na = defcon.Anchor()
+        na.name = "top"
+        na.x = 0
+        na.y = w
+        g.appendAnchor(na)
 
     if addSupportLayer:
         font.newLayer('support')
@@ -354,6 +359,9 @@ def testSwap(docPath):
     # So, components have to be remapped. 
     assert new['wide.component'].components[0].baseGlyph == "narrow"
     assert new['narrow.component'].components[0].baseGlyph == "wide"
+    # Check that anchors swapped
+    assert new['wide'].anchors[0].y == old['narrow'].anchors[0].y
+    assert new['narrow'].anchors[0].y == old['wide'].anchors[0].y
 
 def testAxisMuting():
     d = DesignSpaceProcessor_using_defcon(useVarlib=True)

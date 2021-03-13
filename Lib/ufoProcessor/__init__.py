@@ -166,14 +166,31 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
     font[newName].drawPoints(p)
     font[oldName].width = font[newName].width
     for a in newAnchors:
-        font[oldName].appendAnchor(a.name, (a.x, a.y))
+        na = defcon.Anchor()
+        na.name = a.name
+        na.x = a.x
+        na.y = a.y
+        # FontParts and Defcon add anchors in different ways
+        # this works around that.
+        try:
+            font[oldName].naked().appendAnchor(na)
+        except AttributeError:
+            font[oldName].appendAnchor(na)
 
     font[newName].clear()
     p = font[newName].getPointPen()
     font[swapName].drawPoints(p)
     font[newName].width = font[swapName].width
     for a in oldAnchors:
-        font[newName].appendAnchor(a.name, (a.x, a.y))
+        na = defcon.Anchor()
+        na.name = a.name
+        na.x = a.x
+        na.y = a.y
+        try:
+            font[newName].naked().appendAnchor(na)
+        except:
+            font[newName].appendAnchor(na)
+
 
     # remap the components
     for g in font:
