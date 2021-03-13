@@ -188,7 +188,7 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
         na.y = a.y
         try:
             font[newName].naked().appendAnchor(na)
-        except:
+        except AttributeError:
             font[newName].appendAnchor(na)
 
 
