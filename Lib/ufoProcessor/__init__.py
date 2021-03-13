@@ -151,6 +151,10 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
     # park the old glyph
     if not swapName in font:
         font.newGlyph(swapName)
+    # get anchors
+    oldAnchors = font[oldName].anchors
+    newAnchors = font[newName].anchors
+
     # swap the outlines
     font[swapName].clear()
     p = font[swapName].getPointPen()
@@ -161,11 +165,15 @@ def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________s
     p = font[oldName].getPointPen()
     font[newName].drawPoints(p)
     font[oldName].width = font[newName].width
+    for a in newAnchors:
+        font[oldName].appendAnchor(a.name, (a.x, a.y))
 
     font[newName].clear()
     p = font[newName].getPointPen()
     font[swapName].drawPoints(p)
     font[newName].width = font[swapName].width
+    for a in oldAnchors:
+        font[newName].appendAnchor(a.name, (a.x, a.y))
 
     # remap the components
     for g in font:
