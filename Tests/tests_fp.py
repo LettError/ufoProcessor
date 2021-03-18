@@ -38,11 +38,12 @@ def addGlyphs(font, s, addSupportLayer=True):
         p.lineTo((0,font.info.ascender))
         p.closePath()
         g.width = w
+        g.appendAnchor("top", (0, w))
 
     if addSupportLayer:
         font.newLayer('support')
         print(n for n in font.layers if n.name == 'support')
-        layer = font.layers['support']
+        layer = font.getLayer('support')
         layer.newGlyph('glyphFive')
         layer.newGlyph('glyphOne')  # add an empty glyph to see how it is treated
         lg = layer['glyphFive']
@@ -90,6 +91,10 @@ def _makeTestFonts(rootPath):
     path3 = os.path.join(rootPath, "instances", "geometryInstance%3.3f.ufo")
     path4 = os.path.join(rootPath, "anisotropic_instances", "geometryInstanceAnisotropic1.ufo")
     path5 = os.path.join(rootPath, "anisotropic_instances", "geometryInstanceAnisotropic2.ufo")
+    for path in [path1, path2, path3, path4, path5]:
+        d = os.path.dirname(path)
+        if not os.path.exists(d):
+            os.makedirs(d)
     f1 = fontParts.fontshell.RFont()
     fillInfo(f1)
     addGlyphs(f1, 100, addSupportLayer=False)
@@ -157,7 +162,7 @@ def _makeTestDocument(docPath, useVarlib=True):
     a.maximum = 1000
     a.default = 0
     a.tag = "pop*"
-    a.map = [(500,250)]
+    a.map = [(0,0),(500,250),(1000,1000)]
     d.addAxis(a)
 
     s1 = SourceDescriptor()
@@ -241,13 +246,13 @@ def _testGenerateInstances(docPath, useVarlib=True):
 
 def testSwap(docPath):
     srcPath, dstPath = _makeSwapFonts(os.path.dirname(docPath))
-    f = fontParts.fontshell.Font(srcPath)
+    f = fontParts.fontshell.RFont(srcPath)
     swapGlyphNames(f, "narrow", "wide")
     f.info.styleName = "Swapped"
     f.save(dstPath)
     # test the results in newly opened fonts
-    old = fontParts.fontshell.Font(srcPath)
-    new = fontParts.fontshell.Font(dstPath)
+    old = fontParts.fontshell.RFont(srcPath)
+    new = fontParts.fontshell.RFont(dstPath)
     assert new.kerning.get(("narrow", "narrow")) == old.kerning.get(("wide","wide"))
     assert new.kerning.get(("wide", "wide")) == old.kerning.get(("narrow","narrow"))
     # after the swap these widths should be the same
@@ -259,6 +264,9 @@ def testSwap(docPath):
     # So, components have to be remapped. 
     assert new['wide.component'].components[0].baseGlyph == "narrow"
     assert new['narrow.component'].components[0].baseGlyph == "wide"
+    # Check that anchors swapped
+    assert new['wide'].anchors[0].y == old['narrow'].anchors[0].y
+    assert new['narrow'].anchors[0].y == old['wide'].anchors[0].y
 
 def testUnicodes(docPath, useVarlib=True):
     # after executing testSwap there should be some test fonts
@@ -267,7 +275,7 @@ def testUnicodes(docPath, useVarlib=True):
     d.read(docPath)
     for instance in d.instances:
         if os.path.exists(instance.path):
-            f = fontParts.fontshell.Font(instance.path)
+            f = fontParts.fontshell.RFont(instance.path)
             print("instance.path", instance.path)
             print("instance.name", instance.name, "f['narrow'].unicodes", f['narrow'].unicodes)
             #if instance.name == "TestFamily-TestStyle_pop1000.000":
