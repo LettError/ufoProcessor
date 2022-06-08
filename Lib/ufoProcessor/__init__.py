@@ -341,7 +341,26 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return True
 
     def getSerializedAxes(self):
-        return [a.serialize() for a in self.axes]
+        serialized = []
+        for axis in self.axes:
+            if hasattr(axis, "serialize"):
+                serialized.append(axis.serialize())
+            else:
+                if hasattr(axis, "values"):
+                    # discrete axis, make sure
+                    d = dict(
+                        tag=axis.tag,
+                        name=axis.name,
+                        labelNames=axis.labelNames,
+                        values=axis.values,
+                        default=axis.default,
+                        hidden=axis.hidden,
+                        map=axis.map,
+                        axisOrdering=axis.axisOrdering,
+                        axisLabels=axis.axisLabels,
+                    )
+                serialized.append(d)
+        return serialized
 
     def getMutatorAxes(self):
         # map the axis values?
@@ -466,12 +485,15 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def getGlyphMutator(self, glyphName,
             decomposeComponents=False,
-            fromCache=None):
-        # make a mutator / varlib object for glyphName.
-        cacheKey = (glyphName, decomposeComponents)
-        if cacheKey in self._glyphMutators and fromCache:
-            return self._glyphMutators[cacheKey]
-        items = self.collectMastersForGlyph(glyphName, decomposeComponents=decomposeComponents)
+            fromCache=None,
+            discreteLocation=None,  
+            ):
+        # make a mutator / varlib object for glyphName, with the masters for the given discrete location
+        #cacheKey = (glyphName, decomposeComponents)
+        #if cacheKey in self._glyphMutators and fromCache:
+        #    return self._glyphMutators[cacheKey]
+        items = self.collectMastersForGlyph(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
+        #print('items', items)
         new = []
         for a, b, c in items:
             if hasattr(b, "toMathGlyph"):
@@ -483,14 +505,17 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         thing = None
         try:
             bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.newDefaultLocation(bend=True)) #xx
+            print(bias, thing)
         except TypeError:
+            print('problems')
             self.toolLog.append("getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
             self.problems.append("\tCan't make processor for glyph %s" % (glyphName))
         if thing is not None:
             self._glyphMutators[cacheKey] = thing
+        print('xxxx', thing)
         return thing
 
-    def collectMastersForGlyph(self, glyphName, decomposeComponents=False):
+    def collectMastersForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
         """ Return a glyph mutator.defaultLoc
             decomposeComponents = True causes the source glyphs to be decomposed first
             before building the mutator. That gives you instances that do not depend
@@ -501,7 +526,15 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         items = []
         empties = []
         foundEmpty = False
-        for sourceDescriptor in self.sources:
+        # 
+        print(f'collectMastersForGlyph discreteLocation: {discreteLocation}')
+        if discreteLocation is not None:
+            sources = self.findSourcesForDiscreteLocation(discreteLocation)
+        else:
+            sources = self.sources
+        #
+        print(f'collectMastersForGlyph sources: {sources}')
+        for sourceDescriptor in sources:
             if not os.path.exists(sourceDescriptor.path):
                 #kthxbai
                 p = "\tMissing UFO at %s" % sourceDescriptor.path
@@ -766,32 +799,32 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             except:
                 self.problems.append("Could not make mutator for glyph %s %s" % (glyphName, traceback.format_exc()))
                 continue
-            if glyphName in instanceDescriptor.glyphs.keys():
-                # XXX this should be able to go now that we have full rule support.
-                # reminder: this is what the glyphData can look like
-                # {'instanceLocation': {'custom': 0.0, 'weight': 824.0},
-                #  'masters': [{'font': 'master.Adobe VF Prototype.Master_0.0',
-                #               'glyphName': 'dollar.nostroke',
-                #               'location': {'custom': 0.0, 'weight': 0.0}},
-                #              {'font': 'master.Adobe VF Prototype.Master_1.1',
-                #               'glyphName': 'dollar.nostroke',
-                #               'location': {'custom': 0.0, 'weight': 368.0}},
-                #              {'font': 'master.Adobe VF Prototype.Master_2.2',
-                #               'glyphName': 'dollar.nostroke',
-                #               'location': {'custom': 0.0, 'weight': 1000.0}},
-                #              {'font': 'master.Adobe VF Prototype.Master_3.3',
-                #               'glyphName': 'dollar.nostroke',
-                #               'location': {'custom': 100.0, 'weight': 1000.0}},
-                #              {'font': 'master.Adobe VF Prototype.Master_0.4',
-                #               'glyphName': 'dollar.nostroke',
-                #               'location': {'custom': 100.0, 'weight': 0.0}},
-                #              {'font': 'master.Adobe VF Prototype.Master_4.5',
-                #               'glyphName': 'dollar.nostroke',
-                #               'location': {'custom': 100.0, 'weight': 368.0}}],
-                #  'unicodes': [36]}
-                glyphData = instanceDescriptor.glyphs[glyphName]
-            else:
-                glyphData = {}
+            # if glyphName in instanceDescriptor.glyphs.keys():
+            #     # XXX this should be able to go now that we have full rule support.
+            #     # reminder: this is what the glyphData can look like
+            #     # {'instanceLocation': {'custom': 0.0, 'weight': 824.0},
+            #     #  'masters': [{'font': 'master.Adobe VF Prototype.Master_0.0',
+            #     #               'glyphName': 'dollar.nostroke',
+            #     #               'location': {'custom': 0.0, 'weight': 0.0}},
+            #     #              {'font': 'master.Adobe VF Prototype.Master_1.1',
+            #     #               'glyphName': 'dollar.nostroke',
+            #     #               'location': {'custom': 0.0, 'weight': 368.0}},
+            #     #              {'font': 'master.Adobe VF Prototype.Master_2.2',
+            #     #               'glyphName': 'dollar.nostroke',
+            #     #               'location': {'custom': 0.0, 'weight': 1000.0}},
+            #     #              {'font': 'master.Adobe VF Prototype.Master_3.3',
+            #     #               'glyphName': 'dollar.nostroke',
+            #     #               'location': {'custom': 100.0, 'weight': 1000.0}},
+            #     #              {'font': 'master.Adobe VF Prototype.Master_0.4',
+            #     #               'glyphName': 'dollar.nostroke',
+            #     #               'location': {'custom': 100.0, 'weight': 0.0}},
+            #     #              {'font': 'master.Adobe VF Prototype.Master_4.5',
+            #     #               'glyphName': 'dollar.nostroke',
+            #     #               'location': {'custom': 100.0, 'weight': 368.0}}],
+            #     #  'unicodes': [36]}
+            #     glyphData = instanceDescriptor.glyphs[glyphName]
+            # else:
+            glyphData = {}
             font.newGlyph(glyphName)
             font[glyphName].clear()
             if glyphData.get('mute', False):
@@ -1023,10 +1056,24 @@ if __name__ == "__main__":
     print(f"Can we find the ds5 example at {ds5Path}? {os.path.exists(ds5Path)}")
 
     dsp.read(ds5Path)
+    dsp.loadFonts()
     print('all the axes\n', dsp.axes)
     print(f'\nSo we will have {len(dsp.getDiscreteLocations())} continuous designspaces in this document')
+
+    testGlyphName = "glyphOne"
+
     for loc in dsp.getDiscreteLocations():
         print()
+        print("#"*60)
         print(f'For this discrete location {loc} we have these masters available:')
-        print(dsp.findSourcesForDiscreteLocation(loc))
+        #print(dsp.findSourcesForDiscreteLocation(loc))
 
+        mastersForGlyph = dsp.collectMastersForGlyph(testGlyphName, discreteLocation=loc)
+        print('mastersForGlyph')
+        for item in mastersForGlyph:
+            for i in item:
+                print('\t\t', i)
+
+        # note for later: look into newDefaultLocation
+        mut = dsp.getGlyphMutator(testGlyphName, discreteLocation=loc)
+        print(f'mutator for {testGlyphName} at {loc}', mut)
