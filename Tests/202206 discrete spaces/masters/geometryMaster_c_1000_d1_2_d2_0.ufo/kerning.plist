@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>glyphOne</key>
+    <dict>
+      <key>glyphFour</key>
+      <integer>10</integer>
+      <key>glyphOne</key>
+      <integer>-100</integer>
+      <key>glyphThree</key>
+      <integer>10</integer>
+    </dict>
+    <key>public.kern1.groupA</key>
+    <dict>
+      <key>public.kern2.groupB</key>
+      <integer>-100</integer>
+    </dict>
+  </dict>
+</plist>
