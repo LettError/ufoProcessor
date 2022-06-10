@@ -45,6 +45,8 @@
     <array/>
     <key>postscriptStemSnapV</key>
     <array/>
+    <key>styleName</key>
+    <string>c_1000_d1_1_d2_1</string>
     <key>unitsPerEm</key>
     <integer>1000</integer>
     <key>xHeight</key>

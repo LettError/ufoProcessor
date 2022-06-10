@@ -38,8 +38,10 @@ a3.tag = "DSC2"
 a3.axisOrdering = 3
 doc.addAxis(a3)
 
+default = {a1.name: a1.default, a2.name: a2.default, a3.name: a3.default}
 
 # add sources
+
 for c in [a1.minimum, a1.maximum]:
 	for d1 in a2.values:
 		for d2 in a3.values:
@@ -48,8 +50,12 @@ for c in [a1.minimum, a1.maximum]:
 			s1.path = os.path.join("masters", f"geometryMaster_c_{c}_d1_{d1}_d2_{d2}.ufo")
 			print(s1.path, os.path.exists(s1.path))
 			s1.name = f"geometryMaster{c} {d1} {d2}"
-			s1.location = dict(width=c, countedItems=d1, outlined=d2)
+			masterLocation = dict(width=c, countedItems=d1, outlined=d2)
+			s1.location = masterLocation
+			s1.kerning = True
 			s1.familyName = "MasterFamilyName"
+			if default == masterLocation:
+				s1.copyGroups = True
 			td1 = ["One", "Two", "Three"][(d1-1)]
 			if c == 400:
 				tc = "Narrow"
@@ -89,6 +95,8 @@ for s in range(steps+1):
 				td2 = "Open"
 			s1.name = f"geometryInstance {td1} {tc} {td2}"
 			s1.styleName = f"{td1}{tc}{td2}"
+			s1.kerning = True
+			s1.info = True
 			doc.addInstance(s1)
 
 

@@ -23,6 +23,7 @@
     <key>public.glyphOrder</key>
     <array>
       <string>glyphOne</string>
+      <string>glyphTwo</string>
     </array>
     <key>ufoProcessor.test.lib.entry</key>
     <string>Lib entry for master 1</string>

@@ -4,17 +4,15 @@
   <dict>
     <key>glyphOne</key>
     <dict>
-      <key>glyphFour</key>
-      <integer>10</integer>
       <key>glyphOne</key>
-      <integer>-100</integer>
-      <key>glyphThree</key>
-      <integer>10</integer>
+      <integer>400</integer>
+      <key>glyphTwo</key>
+      <integer>400</integer>
     </dict>
-    <key>public.kern1.groupA</key>
+    <key>glyphTwo</key>
     <dict>
-      <key>public.kern2.groupB</key>
-      <integer>-100</integer>
+      <key>glyphOne</key>
+      <integer>400</integer>
     </dict>
   </dict>
 </plist>
