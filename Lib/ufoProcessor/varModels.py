@@ -65,18 +65,28 @@ class VariationModelMutator(object):
         self.axisMapper = AxisMapper(axes)
         self.axes = {}
         for a in axes:
-            mappedMinimum, mappedDefault, mappedMaximum = a.map_forward(a.minimum), a.map_forward(a.default), a.map_forward(a.maximum)
-            #self.axes[a.name] = (a.minimum, a.default, a.maximum)
+            axisMinimum, axisMaximum = self.getAxisMinMax(a)
+            mappedMinimum, mappedDefault, mappedMaximum = a.map_forward(axisMinimum), a.map_forward(a.default), a.map_forward(axisMaximum)
             self.axes[a.name] = (mappedMinimum, mappedDefault, mappedMaximum)
             
         if model is None:
             dd = [self._normalize(a) for a,b in items]
             ee = self.axisOrder
+            print('VariationModelMutator:', dd)
+            print('VariationModelMutator:', ee)
             self.model = VariationModel(dd, axisOrder=ee)
         else:
             self.model = model
         self.masters = [b for a, b in items]
         self.locations = [a for a, b in items]
+
+    def getAxisMinMax(self, axis):
+        # return tha axis.minimum and axis.maximum for continuous axes
+        # return the min(axis.values), max(axis.values) for discrete axes
+        if hasattr(axis, "values"):
+            return min(axis.values), max(axis.values)
+        return axis.minimum, axis.maximum
+
 
     def get(self, key):
         if key in self.model.locations:
