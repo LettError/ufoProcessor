@@ -72,8 +72,8 @@ class VariationModelMutator(object):
         if model is None:
             dd = [self._normalize(a) for a,b in items]
             ee = self.axisOrder
-            print('VariationModelMutator:', dd)
-            print('VariationModelMutator:', ee)
+            #print('VariationModelMutator:', dd)
+            #print('VariationModelMutator:', ee)
             self.model = VariationModel(dd, axisOrder=ee)
         else:
             self.model = model

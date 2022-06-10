@@ -391,11 +391,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def getVariationModel(self, items, axes, bias=None):
         # Return either a mutatorMath or a varlib.model object for calculating.
-        print(f"\t## into getVariationModel bias {bias}")
+        #print(f"\t## into getVariationModel bias {bias}")
         try:
             if self.useVarlib:
                 # use the varlib variation model
-                print("\t\t## into getVariationModel varlib")
+                #print("\t\t## into getVariationModel varlib")
                 try:
                     return dict(), VariationModelMutator(items, self.axes)
                 except (KeyError, AssertionError):
@@ -405,11 +405,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     return {}, None
             else:
                 # use mutatormath model
-                print("\t\t## into getVariationModel mutatormath")
+                #print("\t\t## into getVariationModel mutatormath")
                 axesForMutator = self.getMutatorAxes()
-                print("\t\t## into getVariationModel axesForMutator", axesForMutator)
-                print("\t\t## into getVariationModel items", items)
-                print("\t\t## into getVariationModel bias", bias)
+                #print("\t\t## into getVariationModel axesForMutator", axesForMutator)
+                #print("\t\t## into getVariationModel items", items)
+                #print("\t\t## into getVariationModel bias", bias)
                 return buildMutator(items, axes=axesForMutator, bias=bias)
         except:
             error = traceback.format_exc()
@@ -417,15 +417,22 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
             return {}, None
 
-    def getInfoMutator(self):
+    def getInfoMutator(self, discreteLocation=None):
         """ Returns a info mutator """
-        if self._infoMutator:
-            return self._infoMutator
+        print(f"\t\t## @@ into getInfoMutator {discreteLocation}")
+        #if self._infoMutator:
+        #    return self._infoMutator
         infoItems = []
-        for sourceDescriptor in self.sources:
+        if discreteLocation is not None:
+            sources = self.findSourcesForDiscreteLocation(discreteLocation)
+        else:
+            sources = self.sources
+        for sourceDescriptor in sources:
+            print(f"\t\t##---> into getInfoMutator  {sourceDescriptor.name}")
             if sourceDescriptor.layerName is not None:
                 continue
-            loc = Location(sourceDescriptor.location)
+            continuous, discrete = self.splitLocation(sourceDescriptor.location)
+            loc = Location(continuous)
             sourceFont = self.fonts[sourceDescriptor.name]
             if sourceFont is None:
                 continue
@@ -433,7 +440,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 infoItems.append((loc, sourceFont.info.toMathInfo()))
             else:
                 infoItems.append((loc, self.mathInfoClass(sourceFont.info)))
-        infoBias = self.newDefaultLocation(bend=True)
+            print(f"\t\t##---> getInfoMutator  {loc}")
+
+        infoBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=infoBias)
         return self._infoMutator
 
@@ -445,10 +454,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         #if self._kerningMutator and pairs == self._kerningMutatorPairs:
         #    return self._kerningMutator
         #@@
-
-
-
-        print(f"\t\t## @@ into getKerningMutator {discreteLocation}")
+        #print(f"\t\t## @@ into getKerningMutator {discreteLocation}")
         if discreteLocation is not None:
             sources = self.findSourcesForDiscreteLocation(discreteLocation)
         else:
@@ -457,7 +463,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         foregroundLayers = [None, 'foreground', 'public.default']
         if pairs is None:
             for sourceDescriptor in sources:
-                print(f"\t\t##---> into getKerningMutator {sourceDescriptor.name}")
+                #print(f"\t\t##---> into getKerningMutator {sourceDescriptor.name}")
                 if sourceDescriptor.layerName not in foregroundLayers:
                     continue
                 if not sourceDescriptor.muteKerning:
@@ -497,7 +503,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         bias, thing = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=kerningBias) #xx
 
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=kerningBias)
-        print('self._kerningMutator', self._kerningMutator)
+        #print('self._kerningMutator', self._kerningMutator)
         return self._kerningMutator
 
     def filterThisLocation(self, location, mutedAxes):
@@ -531,8 +537,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         #if cacheKey in self._glyphMutators and fromCache:
         #    return self._glyphMutators[cacheKey]
         items = self.collectMastersForGlyph(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
-        for item in items:
-            print('\t\t## getGlyphMutator items', item)
+        #for item in items:
+        #    print('\t\t## getGlyphMutator items', item)
         new = []
         for a, b, c in items:
             if hasattr(b, "toMathGlyph"):
@@ -542,13 +548,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             else:
                 new.append((a,self.mathGlyphClass(b)))
         thing = None
-        print('\t\t## getGlyphMutator new', new)
+        # print('\t\t## getGlyphMutator new', new)
         try:
             bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)) #xx
-            print('\t\t## getGlyphMutator bias', bias)
-            print('\t\t## getGlyphMutator thing', thing)
+            #print('\t\t## getGlyphMutator bias', bias)
+            #print('\t\t## getGlyphMutator thing', thing)
         except TypeError:
-            print('problems')
+            #print('problems')
             self.toolLog.append("getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
             self.problems.append("\tCan't make processor for glyph %s" % (glyphName))
         #if thing is not None:
@@ -567,13 +573,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         empties = []
         foundEmpty = False
         # 
-        print(f'collectMastersForGlyph discreteLocation: {discreteLocation}')
+        #print(f'collectMastersForGlyph discreteLocation: {discreteLocation}')
         if discreteLocation is not None:
             sources = self.findSourcesForDiscreteLocation(discreteLocation)
         else:
             sources = self.sources
         #
-        print(f'collectMastersForGlyph sources: {sources}')
+        #print(f'collectMastersForGlyph sources: {sources}')
         for sourceDescriptor in sources:
             if not os.path.exists(sourceDescriptor.path):
                 #kthxbai
@@ -751,8 +757,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             bend=False):
         """ Generate a font object for this instance """
         continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
-        print(f"\t ## @@@ makeInstance continuousLocation {continuousLocation}")
-        print(f"\t ## makeInstance discreteLocation {discreteLocation}")
+        #print(f"\t ## @@@ makeInstance continuousLocation {continuousLocation}")
+        #print(f"\t ## makeInstance discreteLocation {discreteLocation}")
         font = self._instantiateFont(None)
         # make fonty things here
         loc = Location(continuousLocation)
@@ -779,31 +785,30 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             else:
                 kerningMutator = self.getKerningMutator(discreteLocation=discreteLocation)
                 if kerningMutator is not None:
-                    print("-------------------- making the kerning!")
                     kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                     kerningObject.extractKerning(font)
         # # make the info
-        # try:
-        #     infoMutator = self.getInfoMutator()
-        #     if infoMutator is not None:
-        #         if not anisotropic:
-        #             infoInstanceObject = infoMutator.makeInstance(loc, bend=bend)
-        #         else:
-        #             horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
-        #             verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
-        #             # merge them again
-        #             infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
-        #         if self.roundGeometry:
-        #             try:
-        #                 infoInstanceObject = infoInstanceObject.round()
-        #             except AttributeError:
-        #                 pass
-        #         infoInstanceObject.extractInfo(font.info)
-        #     font.info.familyName = instanceDescriptor.familyName
-        #     font.info.styleName = instanceDescriptor.styleName
-        #     font.info.postscriptFontName = instanceDescriptor.postScriptFontName # yikes, note the differences in capitalisation..
-        #     font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
-        #     font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
+        try:
+            infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
+            if infoMutator is not None:
+                if not anisotropic:
+                    infoInstanceObject = infoMutator.makeInstance(loc, bend=bend)
+                else:
+                    horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
+                    verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
+                    # merge them again
+                    infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
+                if self.roundGeometry:
+                    try:
+                        infoInstanceObject = infoInstanceObject.round()
+                    except AttributeError:
+                        pass
+                infoInstanceObject.extractInfo(font.info)
+            font.info.familyName = instanceDescriptor.familyName
+            font.info.styleName = instanceDescriptor.styleName
+            font.info.postscriptFontName = instanceDescriptor.postScriptFontName # yikes, note the differences in capitalisation..
+            font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
+            font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
         #     # NEED SOME HELP WITH THIS
         #     # localised names need to go to the right openTypeNameRecords
         #     # records = []
@@ -812,8 +817,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         #     # for languageCode, name in instanceDescriptor.localisedStyleMapFamilyName.items():
         #     #    # Name ID 1 (font family name) is found at the generic styleMapFamily attribute.
         #     #    records.append((nameID, ))
-        # except:
-        #     self.problems.append("Could not make fontinfo for %s. %s" % (loc, traceback.format_exc()))
+        except:
+            self.problems.append("Could not make fontinfo for %s. %s" % (loc, traceback.format_exc()))
         # for sourceDescriptor in self.sources:
         #     if sourceDescriptor.copyInfo:
         #         # this is the source
@@ -1122,7 +1127,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
 
 # while we're testing
-dsp = DesignSpaceProcessor(useVarlib=True)
+dsp = DesignSpaceProcessor(useVarlib=False)
 print(f'useVarLib {dsp.useVarlib}')
 ds5Path = "../../Tests/202206 discrete spaces/test.ds5.designspace"
 print(f"Can we find the ds5 example at {ds5Path}? {os.path.exists(ds5Path)}")
