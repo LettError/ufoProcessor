@@ -29,10 +29,10 @@ from mutatorMath.objects.location import Location
 
 
 # back to these when we're running as a package
-#from ufoProcessor.varModels import VariationModelMutator
-#from ufoProcessor.emptyPen import checkGlyphIsEmpty
-from varModels import VariationModelMutator
-from emptyPen import checkGlyphIsEmpty
+from ufoProcessor.varModels import VariationModelMutator
+from ufoProcessor.emptyPen import checkGlyphIsEmpty
+#from varModels import VariationModelMutator
+#from emptyPen import checkGlyphIsEmpty
 
 
 try:
@@ -317,6 +317,12 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         self.processRules = True
         self.problems = []  # receptacle for problem notifications. Not big enough to break, but also not small enough to ignore.
         self.toolLog = []
+
+    def hasDiscreteAxes(self):
+        # return True if this designspace has > 0 discrete axes
+        for axis in self.getOrderedDiscreteAxes():
+            return True
+        return False
 
     def generateUFO(self, processRules=True, glyphNames=None, pairs=None, bend=False):
         # makes the instances
@@ -1125,55 +1131,56 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 sources.append(s)
         return sources
 
-
-# while we're testing
-dsp = DesignSpaceProcessor(useVarlib=False)
-print(f'useVarLib {dsp.useVarlib}')
-ds5Path = "../../Tests/202206 discrete spaces/test.ds5.designspace"
-print(f"Can we find the ds5 example at {ds5Path}? {os.path.exists(ds5Path)}")
-
-dsp.read(ds5Path)
-dsp.loadFonts()
-print('all the axes\n', dsp.axes)
-print(f'\nSo we will have {len(dsp.getDiscreteLocations())} continuous designspaces in this document')
-
-testGlyphName = "glyphOne"
-makeFonts = False
-
 if False:
-    for loc in dsp.getDiscreteLocations():
-        print()
-        print("#"*60)
-        print(f'For this discrete location {loc} we have these masters available:')
-        #print(dsp.findSourcesForDiscreteLocation(loc))
+    # while we're testing
+    dsp = DesignSpaceProcessor(useVarlib=False)
+    print(f'useVarLib {dsp.useVarlib}')
+    ds5Path = "../../Tests/202206 discrete spaces/test.ds5.designspace"
+    print(f"Can we find the ds5 example at {ds5Path}? {os.path.exists(ds5Path)}")
 
-        mastersForGlyph = dsp.collectMastersForGlyph(testGlyphName, discreteLocation=loc)
-        print('mastersForGlyph')
-        for item in mastersForGlyph:
-            for i in item:
-                print('\t\t', i)
+    dsp.read(ds5Path)
+    dsp.loadFonts()
+    print(f"has discrete axes: {dsp.hasDiscreteAxes()}")
+    print('all the axes\n', dsp.axes)
+    print(f'\nSo we will have {len(dsp.getDiscreteLocations())} continuous designspaces in this document')
 
-        # note for later: look into newDefaultLocation
-        mut = dsp.getGlyphMutator(testGlyphName, discreteLocation=loc)
-        print(f'mutator for {testGlyphName} at {loc}', mut)
-        print(f'newDefaultLocation {dsp.newDefaultLocation(discreteLocation=loc)}')
-        
-        if makeFonts:
-            f = NewFont()
-            extrapol = 200
-            for v in range(400-extrapol, 1000+extrapol, 100):
-                n = f"result_glyph{v}"
-                f.newGlyph(n)
-                g = f[n]
-                r = mut.makeInstance({'width':v})
-                g.fromMathGlyph(r)
-                g.width = r.width
+    testGlyphName = "glyphOne"
+    makeFonts = False
 
-    #for instanceD in dsp.instances:
-    #    print(instanceD.styleName, dsp.splitLocation(instanceD.location))
+    if False:
+        for loc in dsp.getDiscreteLocations():
+            print()
+            print("#"*60)
+            print(f'For this discrete location {loc} we have these masters available:')
+            #print(dsp.findSourcesForDiscreteLocation(loc))
+
+            mastersForGlyph = dsp.collectMastersForGlyph(testGlyphName, discreteLocation=loc)
+            print('mastersForGlyph')
+            for item in mastersForGlyph:
+                for i in item:
+                    print('\t\t', i)
+
+            # note for later: look into newDefaultLocation
+            mut = dsp.getGlyphMutator(testGlyphName, discreteLocation=loc)
+            print(f'mutator for {testGlyphName} at {loc}', mut)
+            print(f'newDefaultLocation {dsp.newDefaultLocation(discreteLocation=loc)}')
+            
+            if makeFonts:
+                f = NewFont()
+                extrapol = 200
+                for v in range(400-extrapol, 1000+extrapol, 100):
+                    n = f"result_glyph{v}"
+                    f.newGlyph(n)
+                    g = f[n]
+                    r = mut.makeInstance({'width':v})
+                    g.fromMathGlyph(r)
+                    g.width = r.width
+
+        #for instanceD in dsp.instances:
+        #    print(instanceD.styleName, dsp.splitLocation(instanceD.location))
 
 
-        #dsp.makeInstance(instanceD)
+            #dsp.makeInstance(instanceD)
 
 
-dsp.generateUFO()
+    dsp.generateUFO()
