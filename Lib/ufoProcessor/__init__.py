@@ -2,11 +2,12 @@
 
 from __future__ import print_function, division, absolute_import
 
+
+from warnings import warn
 import os
 import logging, traceback
 import collections
 import itertools
-# from pprint import pprint
 
 from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
 from fontTools.misc import plistlib
@@ -27,12 +28,10 @@ from fontMath.mathKerning import MathKerning
 from mutatorMath.objects.mutator import buildMutator
 from mutatorMath.objects.location import Location
 
-
 # back to these when we're running as a package
+import ufoProcessor.varModels
 from ufoProcessor.varModels import VariationModelMutator
 from ufoProcessor.emptyPen import checkGlyphIsEmpty
-#from varModels import VariationModelMutator
-#from emptyPen import checkGlyphIsEmpty
 
 
 try:
@@ -124,7 +123,7 @@ def build(
         document.roundGeometry = roundGeometry
         document.read(path)
         try:
-            r = document.generateUFO(processRules=processRules)
+            r = document.generateUFO()
             results.append(r)
         except:
             if logger:
@@ -149,110 +148,6 @@ def getUFOVersion(ufoPath):
     with open(metaInfoPath, 'rb') as f:
         p = plistlib.load(f)
         return p.get('formatVersion')
-
-
-# def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________swap"):
-#     # In font swap the glyphs oldName and newName.
-#     # Also swap the names in components in order to preserve appearance.
-#     # Also swap the names in font groups.
-#     if not oldName in font or not newName in font:
-#         return None
-#     swapName = oldName + swapNameExtension
-#     # park the old glyph
-#     if not swapName in font:
-#         font.newGlyph(swapName)
-#     # get anchors
-#     oldAnchors = font[oldName].anchors
-#     newAnchors = font[newName].anchors
-
-#     # swap the outlines
-#     font[swapName].clear()
-#     p = font[swapName].getPointPen()
-#     font[oldName].drawPoints(p)
-#     font[swapName].width = font[oldName].width
-#     # lib?
-#     font[oldName].clear()
-#     p = font[oldName].getPointPen()
-#     font[newName].drawPoints(p)
-#     font[oldName].width = font[newName].width
-#     for a in newAnchors:
-#         na = defcon.Anchor()
-#         na.name = a.name
-#         na.x = a.x
-#         na.y = a.y
-#         # FontParts and Defcon add anchors in different ways
-#         # this works around that.
-#         try:
-#             font[oldName].naked().appendAnchor(na)
-#         except AttributeError:
-#             font[oldName].appendAnchor(na)
-
-#     font[newName].clear()
-#     p = font[newName].getPointPen()
-#     font[swapName].drawPoints(p)
-#     font[newName].width = font[swapName].width
-#     for a in oldAnchors:
-#         na = defcon.Anchor()
-#         na.name = a.name
-#         na.x = a.x
-#         na.y = a.y
-#         try:
-#             font[newName].naked().appendAnchor(na)
-#         except AttributeError:
-#             font[newName].appendAnchor(na)
-
-
-#     # remap the components
-#     for g in font:
-#         for c in g.components:
-#            if c.baseGlyph == oldName:
-#                c.baseGlyph = swapName
-#            continue
-#     for g in font:
-#         for c in g.components:
-#            if c.baseGlyph == newName:
-#                c.baseGlyph = oldName
-#            continue
-#     for g in font:
-#         for c in g.components:
-#            if c.baseGlyph == swapName:
-#                c.baseGlyph = newName
-
-#     # change the names in groups
-#     # the shapes will swap, that will invalidate the kerning
-#     # so the names need to swap in the kerning as well.
-#     newKerning = {}
-#     for first, second in font.kerning.keys():
-#         value = font.kerning[(first,second)]
-#         if first == oldName:
-#             first = newName
-#         elif first == newName:
-#             first = oldName
-#         if second == oldName:
-#             second = newName
-#         elif second == newName:
-#             second = oldName
-#         newKerning[(first, second)] = value
-#     font.kerning.clear()
-#     font.kerning.update(newKerning)
-
-#     for groupName, members in font.groups.items():
-#         newMembers = []
-#         for name in members:
-#             if name == oldName:
-#                 newMembers.append(newName)
-#             elif name == newName:
-#                 newMembers.append(oldName)
-#             else:
-#                 newMembers.append(name)
-#         font.groups[groupName] = newMembers
-
-#     remove = []
-#     for g in font:
-#         if g.name.find(swapNameExtension)!=-1:
-#             remove.append(g.name)
-#     for r in remove:
-#         del font[r]
 
 
 class DecomposePointPen(object):
@@ -397,13 +292,21 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def getVariationModel(self, items, axes, bias=None):
         # Return either a mutatorMath or a varlib.model object for calculating.
-        #print(f"\t## into getVariationModel bias {bias}")
+        print(f"getVariationModel items {items}")
+        print(f"getVariationModel bias {bias}")
         try:
             if self.useVarlib:
                 # use the varlib variation model
-                #print("\t\t## into getVariationModel varlib")
+                print("\t\t## into getVariationModel varlib")
                 try:
-                    return dict(), VariationModelMutator(items, self.axes)
+                    return dict(), VariationModelMutator(items, axes=self.axes, extrapolate=True)
+                except TypeError:
+                    print(f"@@ typeError in getVariationModel {ufoProcessor.varModels.__file__}")
+                    import fontTools.varLib.models
+                    print(f"@@ {fontTools.varLib.models.__file__}")
+                    error = traceback.format_exc()
+                    print(error)
+                    return {}, None
                 except (KeyError, AssertionError):
                     error = traceback.format_exc()
                     self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
@@ -449,6 +352,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             print(f"\t\t##---> getInfoMutator  {loc}")
 
         infoBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
+        print("@@5")
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=infoBias)
         return self._infoMutator
 
@@ -460,19 +364,25 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         #if self._kerningMutator and pairs == self._kerningMutatorPairs:
         #    return self._kerningMutator
         #@@
-        #print(f"\t\t## @@ into getKerningMutator {discreteLocation}")
+        print(f"\t\t## @@ into getKerningMutator {discreteLocation}")
         if discreteLocation is not None:
             sources = self.findSourcesForDiscreteLocation(discreteLocation)
+            print(f"\t\t## @@ into getKerningMutator sources 1 {sources}")
         else:
             sources = self.sources
+            print(f"\t\t## @@ into getKerningMutator sources 2 {sources}")
         kerningItems = []
         foregroundLayers = [None, 'foreground', 'public.default']
         if pairs is None:
+            print("\t\t\t\t\t ** 1")
             for sourceDescriptor in sources:
-                #print(f"\t\t##---> into getKerningMutator {sourceDescriptor.name}")
+                print("\t\t\t\t\t ** 2")
+                print(f"\t\t##---> into getKerningMutator {sourceDescriptor.name}")
                 if sourceDescriptor.layerName not in foregroundLayers:
+                    print("\t\t\t\t\t ** 3")
                     continue
                 if not sourceDescriptor.muteKerning:
+                    print("\t\t\t\t\t ** 4")
                     # filter this XX @@
                     continuous, discrete = self.splitLocation(sourceDescriptor.location)
                     loc = Location(continuous)
@@ -480,6 +390,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     if sourceFont is None: continue
                     # this makes assumptions about the groups of all sources being the same.
                     kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
+                print("\t\t\t\t\t ** 5")
+                print(f"\t\t##---> into kerningItems {kerningItems}")
         else:
             self._kerningMutatorPairs = pairs
             for sourceDescriptor in sources:
@@ -503,11 +415,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                             if v is not None:
                                 sparseKerning[pair] = v
                         kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
-        #kerningBias = self.newDefaultLocation(bend=True)
-
         kerningBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
+        print("@@6")
+        print(f"\t\t## getKerningMutator {kerningItems}")
         bias, thing = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=kerningBias) #xx
-
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=kerningBias)
         #print('self._kerningMutator', self._kerningMutator)
         return self._kerningMutator
@@ -555,14 +466,20 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 new.append((a,self.mathGlyphClass(b)))
         thing = None
         # print('\t\t## getGlyphMutator new', new)
-        try:
-            bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)) #xx
+        #try:
+
+        print(f'@@4 {glyphName}')
+        print(f'@@4 {glyphName} new', new)
+        #print('@@4 serializedAxes', serializedAxes)
+        thisBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
+        print('@@4 thisBias', thisBias)
+        bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=thisBias) #xx
             #print('\t\t## getGlyphMutator bias', bias)
             #print('\t\t## getGlyphMutator thing', thing)
-        except TypeError:
-            #print('problems')
-            self.toolLog.append("getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
-            self.problems.append("\tCan't make processor for glyph %s" % (glyphName))
+        #except TypeError:
+        #    #print('problems')
+        #    self.toolLog.append("getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
+        #    self.problems.append("\tCan't make processor for glyph %s" % (glyphName))
         #if thing is not None:
         #    self._glyphMutators[cacheKey] = thing
         return thing
@@ -757,14 +674,16 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return fonts
 
     def makeInstance(self, instanceDescriptor,
-            doRules=False,
+            doRules=None,
             glyphNames=None,
             pairs=None,
             bend=False):
         """ Generate a font object for this instance """
+        if doRules is not None:
+            warn('The doRules argument is deprecated', DeprecationWarning, stacklevel=2)
         continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
-        #print(f"\t ## @@@ makeInstance continuousLocation {continuousLocation}")
-        #print(f"\t ## makeInstance discreteLocation {discreteLocation}")
+        print(f"\t ## @@@ makeInstance continuousLocation {continuousLocation}")
+        print(f"\t ## makeInstance discreteLocation {discreteLocation}")
         font = self._instantiateFont(None)
         # make fonty things here
         loc = Location(continuousLocation)
@@ -773,19 +692,15 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         if self.isAnisotropic(loc):
             anisotropic = True
             locHorizontal, locVertical = self.splitAnisotropic(loc)
-        # groups
-        #renameMap = getattr(self.fonts[self.default.name], "kerningGroupConversionRenameMaps", None)
-        #font.kerningGroupConversionRenameMaps = renameMap if renameMap is not None else {'side1': {}, 'side2': {}}
-        # make the kerning
-        # this kerning is always horizontal. We can take the horizontal location
-        # filter the available pairs?
-        # @@
+        print("anisotropic", anisotropic, locHorizontal, locVertical)
+        print("instanceDescriptor.kerning", instanceDescriptor.kerning)
         if instanceDescriptor.kerning:
             if pairs:
                 try:
                     kerningMutator = self.getKerningMutator(pairs=pairs, discreteLocation=discreteLocation)
                     kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                     kerningObject.extractKerning(font)
+                    print('\t\t\tinstance kerning @@2b: ', font.kerning.items())
                 except:
                     self.problems.append("Could not make kerning for %s. %s" % (loc, traceback.format_exc()))
             else:
@@ -793,6 +708,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 if kerningMutator is not None:
                     kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                     kerningObject.extractKerning(font)
+                    print('\t\t\tinstance kerning @@2a: ', font.kerning.items())
         # # make the info
         try:
             infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
@@ -853,6 +769,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             selectedGlyphNames = self.glyphNames
         # add the glyphnames to the font.lib['public.glyphOrder']
         if not 'public.glyphOrder' in font.lib.keys():
+            # should be the glyphorder from the default, yes?
             font.lib['public.glyphOrder'] = selectedGlyphNames
         for glyphName in selectedGlyphNames:
             try:
@@ -863,89 +780,35 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             except:
                 self.problems.append("Could not make mutator for glyph %s %s" % (glyphName, traceback.format_exc()))
                 continue
-            # if glyphName in instanceDescriptor.glyphs.keys():
-            #     # XXX this should be able to go now that we have full rule support.
-            #     # reminder: this is what the glyphData can look like
-            #     # {'instanceLocation': {'custom': 0.0, 'weight': 824.0},
-            #     #  'masters': [{'font': 'master.Adobe VF Prototype.Master_0.0',
-            #     #               'glyphName': 'dollar.nostroke',
-            #     #               'location': {'custom': 0.0, 'weight': 0.0}},
-            #     #              {'font': 'master.Adobe VF Prototype.Master_1.1',
-            #     #               'glyphName': 'dollar.nostroke',
-            #     #               'location': {'custom': 0.0, 'weight': 368.0}},
-            #     #              {'font': 'master.Adobe VF Prototype.Master_2.2',
-            #     #               'glyphName': 'dollar.nostroke',
-            #     #               'location': {'custom': 0.0, 'weight': 1000.0}},
-            #     #              {'font': 'master.Adobe VF Prototype.Master_3.3',
-            #     #               'glyphName': 'dollar.nostroke',
-            #     #               'location': {'custom': 100.0, 'weight': 1000.0}},
-            #     #              {'font': 'master.Adobe VF Prototype.Master_0.4',
-            #     #               'glyphName': 'dollar.nostroke',
-            #     #               'location': {'custom': 100.0, 'weight': 0.0}},
-            #     #              {'font': 'master.Adobe VF Prototype.Master_4.5',
-            #     #               'glyphName': 'dollar.nostroke',
-            #     #               'location': {'custom': 100.0, 'weight': 368.0}}],
-            #     #  'unicodes': [36]}
-            #     glyphData = instanceDescriptor.glyphs[glyphName]
-            # else:
             glyphData = {}
             font.newGlyph(glyphName)
             font[glyphName].clear()
-            if glyphData.get('mute', False):
-                # mute this glyph, skip
-                continue
-            glyphInstanceLocation = glyphData.get("instanceLocation", instanceDescriptor.location)
-            glyphInstanceLocation = Location(glyphInstanceLocation)
-            uniValues = []
-            neutral = glyphMutator.get(())
-            if neutral is not None:
-                uniValues = neutral[0].unicodes
-            else:
-                neutralFont = self.getNeutralFont()
-                if glyphName in neutralFont:
-                    uniValues = neutralFont[glyphName].unicodes
-            glyphInstanceUnicodes = glyphData.get("unicodes", uniValues)
-            note = glyphData.get("note")
-            if note:
-                font[glyphName] = note
-            # XXXX phase out support for instance-specific masters
-            # this should be handled by the rules system.
-            # masters = glyphData.get("masters", None)
-            # if masters is not None:
-            #     items = []
-            #     for glyphMaster in masters:
-            #         sourceGlyphFont = glyphMaster.get("font")
-            #         sourceGlyphName = glyphMaster.get("glyphName", glyphName)
-            #         m = self.fonts.get(sourceGlyphFont)
-            #         if not sourceGlyphName in m:
-            #             continue
-            #         if hasattr(m[sourceGlyphName], "toMathGlyph"):
-            #             sourceGlyph = m[sourceGlyphName].toMathGlyph()
-            #         else:
-            #             sourceGlyph = MathGlyph(m[sourceGlyphName])
-            #         sourceGlyphLocation = glyphMaster.get("location")
-            #         items.append((Location(sourceGlyphLocation), sourceGlyph))
-            #     bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.newDefaultLocation(bend=True))
+            glyphInstanceUnicodes = []
+            neutralFont = self.getNeutralFont()
+            # get the unicodes from the default
+            if glyphName in neutralFont:
+                glyphInstanceUnicodes = neutralFont[glyphName].unicodes
             try:
-                if not self.isAnisotropic(glyphInstanceLocation):
-                    glyphInstanceObject = glyphMutator.makeInstance(glyphInstanceLocation, bend=bend)
+                if not self.isAnisotropic(continuousLocation):
+                    glyphInstanceObject = glyphMutator.makeInstance(continuousLocation, bend=bend)
                 else:
                     # split anisotropic location into horizontal and vertical components
-                    horizontal, vertical = self.splitAnisotropic(glyphInstanceLocation)
-                    horizontalGlyphInstanceObject = glyphMutator.makeInstance(horizontal, bend=bend)
-                    verticalGlyphInstanceObject = glyphMutator.makeInstance(vertical, bend=bend)
+                    print(f"\t\t\tmaking anisotropic glyph at {locHorizontal} {locVertical}")
+                    #horizontal, vertical = self.splitAnisotropic(continuousLocation)
+                    horizontalGlyphInstanceObject = glyphMutator.makeInstance(locHorizontal, bend=bend)
+                    verticalGlyphInstanceObject = glyphMutator.makeInstance(locVertical, bend=bend)
                     # merge them again
                     glyphInstanceObject = (1,0)*horizontalGlyphInstanceObject + (0,1)*verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
                 self.problems.append("Quite possibly some sort of data alignment error in %s" % glyphName)
                 continue
-            font.newGlyph(glyphName)
-            font[glyphName].clear()
             if self.roundGeometry:
                 try:
                     glyphInstanceObject = glyphInstanceObject.round()
                 except AttributeError:
+                    # what are we catching here? 
+                    print(f"no round method for {glyphInstanceObject} ?")
                     pass
             try:
                 # File "/Users/erik/code/ufoProcessor/Lib/ufoProcessor/__init__.py", line 649, in makeInstance
@@ -967,23 +830,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 glyphInstanceObject.drawPoints(pPen)
             font[glyphName].width = glyphInstanceObject.width
             font[glyphName].unicodes = glyphInstanceUnicodes
-        # if doRules:
-        #     resultNames = processRules(self.rules, loc, self.glyphNames)
-        #     for oldName, newName in zip(self.glyphNames, resultNames):
-        #         if oldName != newName:
-        #             swapGlyphNames(font, oldName, newName)
-        # copy the glyph lib?
-        #for sourceDescriptor in self.sources:
-        #    if sourceDescriptor.copyLib:
-        #        pass
-        #    pass
-        # store designspace location in the font.lib
         font.lib['designspace.location'] = list(instanceDescriptor.location.items())
+        
         return font
 
     def isAnisotropic(self, location):
         for v in location.values():
-            if type(v)==tuple:
+            if isinstance(v, (list, tuple)):
                 return True
         return False
 
@@ -1079,11 +932,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 axes.append(axisObj)
         return axes
 
-    #def removeDiscreteValuesFromLocation(self, location, discreteLocation=None):
-    #    if discreteLocation:
-    #        return {k:v for k, v in location.items() if k not in discreteLocation}
-    #    return location
-
     def splitLocation(self, location):
         # split a location in a continouous and a discrete part
         discreteAxes = [a.name for a in self.getOrderedDiscreteAxes()]
@@ -1131,9 +979,17 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 sources.append(s)
         return sources
 
-if False:
+if __name__ == "__main__":
     # while we're testing
-    dsp = DesignSpaceProcessor(useVarlib=False)
+    
+    import ufoProcessor
+    print(ufoProcessor.__file__)
+    import ufoProcessor.varModels
+    print(ufoProcessor.varModels.__file__)
+
+    useVarlibPref = False
+
+    dsp = DesignSpaceProcessor(useVarlib=useVarlibPref)
     print(f'useVarLib {dsp.useVarlib}')
     ds5Path = "../../Tests/202206 discrete spaces/test.ds5.designspace"
     print(f"Can we find the ds5 example at {ds5Path}? {os.path.exists(ds5Path)}")
@@ -1141,46 +997,14 @@ if False:
     dsp.read(ds5Path)
     dsp.loadFonts()
     print(f"has discrete axes: {dsp.hasDiscreteAxes()}")
-    print('all the axes\n', dsp.axes)
+    print('These are the axes\n', dsp.axes)
     print(f'\nSo we will have {len(dsp.getDiscreteLocations())} continuous designspaces in this document')
 
-    testGlyphName = "glyphOne"
-    makeFonts = False
-
-    if False:
-        for loc in dsp.getDiscreteLocations():
-            print()
-            print("#"*60)
-            print(f'For this discrete location {loc} we have these masters available:')
-            #print(dsp.findSourcesForDiscreteLocation(loc))
-
-            mastersForGlyph = dsp.collectMastersForGlyph(testGlyphName, discreteLocation=loc)
-            print('mastersForGlyph')
-            for item in mastersForGlyph:
-                for i in item:
-                    print('\t\t', i)
-
-            # note for later: look into newDefaultLocation
-            mut = dsp.getGlyphMutator(testGlyphName, discreteLocation=loc)
-            print(f'mutator for {testGlyphName} at {loc}', mut)
-            print(f'newDefaultLocation {dsp.newDefaultLocation(discreteLocation=loc)}')
-            
-            if makeFonts:
-                f = NewFont()
-                extrapol = 200
-                for v in range(400-extrapol, 1000+extrapol, 100):
-                    n = f"result_glyph{v}"
-                    f.newGlyph(n)
-                    g = f[n]
-                    r = mut.makeInstance({'width':v})
-                    g.fromMathGlyph(r)
-                    g.width = r.width
-
-        #for instanceD in dsp.instances:
-        #    print(instanceD.styleName, dsp.splitLocation(instanceD.location))
-
-
-            #dsp.makeInstance(instanceD)
-
-
     dsp.generateUFO()
+
+    #for discreteLocation in dsp.getDiscreteLocations():
+    #    print(f"\titerating through discreteLocations: {discreteLocation}")
+    #    aGlyphs = dsp.collectMastersForGlyph("glyphOne", discreteLocation=discreteLocation)
+    #    for a in aGlyphs:
+    #        print(f"\t\t{a}")
+            

@@ -5,14 +5,16 @@
     <key>glyphOne</key>
     <dict>
       <key>glyphOne</key>
-      <integer>1000</integer>
+      <integer>400</integer>
       <key>glyphTwo</key>
-      <integer>1000</integer>
+      <integer>800</integer>
     </dict>
     <key>glyphTwo</key>
     <dict>
       <key>glyphOne</key>
-      <integer>1000</integer>
+      <integer>-800</integer>
+      <key>glyphTwo</key>
+      <integer>-400</integer>
     </dict>
   </dict>
 </plist>

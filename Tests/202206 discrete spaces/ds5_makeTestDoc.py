@@ -10,6 +10,9 @@ import os
 import fontTools
 print(fontTools.version)
 
+import ufoProcessor
+print(ufoProcessor.__file__)
+
 doc = DesignSpaceDocument()
 
 #https://fonttools.readthedocs.io/en/latest/designspaceLib/python.html#axisdescriptor
@@ -72,16 +75,27 @@ def ip(a,b,f):
 	return a + f*(b-a)
 
 # add instances
-steps = 4
-for s in range(steps+1):
-	factor = s / steps
-	c = int(ip(a1.minimum, a1.maximum, factor))
+steps = 8
+extrapolateAmount = 100
+
+
+interestingWeightValues = [(200, 1200), 300, 400, 700, 1000, 1100]
+
+mathModelPrefKey = "com.letterror.mathModelPref"
+mathModelVarlibPref = "previewVarLib"
+mathModelMutatorMathPref = "previewMutatorMath"
+
+#      <key>com.letterror.mathModelPref</key>
+#      <string>previewVarLib</string>
+
+
+for c in interestingWeightValues:
 	for d1 in a2.values:
 		for d2 in a3.values:
 
 			s1 = InstanceDescriptor()
 			s1.path = os.path.join("instances", f"geometryInstance_c_{c}_d1_{d1}_d2_{d2}.ufo")
-			print(s1.path, os.path.exists(s1.path))
+			#print(s1.path, os.path.exists(s1.path))
 			s1.location = dict(width=c, countedItems=d1, outlined=d2)
 			s1.familyName = "InstanceFamilyName"
 			td1 = ["One", "Two", "Three"][(d1-1)]
@@ -99,8 +113,8 @@ for s in range(steps+1):
 			s1.info = True
 			doc.addInstance(s1)
 
-
 path = "test.ds5.designspace"
+print(doc.lib)
 doc.write(path)
 
 
@@ -112,3 +126,8 @@ for a in doc.axes:
 	
 for s in doc.sources:
 	print(s.location)
+
+# ok. now about generating the instances.
+
+udoc = ufoProcessor.DesignSpaceProcessor()
+udoc.read(path)

@@ -57,10 +57,11 @@ class VariationModelMutator(object):
         but uses the fonttools varlib logic to calculate.
     """
 
-    def __init__(self, items, axes, model=None):
+    def __init__(self, items, axes, model=None, extrapolate=True):
         # items: list of locationdict, value tuples
         # axes: list of axis dictionaried, not axisdescriptor objects.
         # model: a model, if we want to share one
+        self.extrapolate = extrapolate
         self.axisOrder = [a.name for a in axes]
         self.axisMapper = AxisMapper(axes)
         self.axes = {}
@@ -74,7 +75,7 @@ class VariationModelMutator(object):
             ee = self.axisOrder
             #print('VariationModelMutator:', dd)
             #print('VariationModelMutator:', ee)
-            self.model = VariationModel(dd, axisOrder=ee)
+            self.model = VariationModel(dd, axisOrder=ee, extrapolate=self.extrapolate)
         else:
             self.model = model
         self.masters = [b for a, b in items]
@@ -86,7 +87,6 @@ class VariationModelMutator(object):
         if hasattr(axis, "values"):
             return min(axis.values), max(axis.values)
         return axis.minimum, axis.maximum
-
 
     def get(self, key):
         if key in self.model.locations:
@@ -113,10 +113,10 @@ class VariationModelMutator(object):
             items.append((self.masters[sortedOrder], s))
         return items
 
-
     def makeInstance(self, location, bend=False):
         # check for anisotropic locations here
         #print("\t1", location)
+        print(f"------ makeInstance is mapping: {location} -> mapped -> {self.axisMapper(location)}")
         if bend:
             location = self.axisMapper(location)
         #print("\t2", location)
@@ -216,7 +216,7 @@ if __name__ == "__main__":
     assert mm.makeInstance(dict(Weight=0, Width=10)) == 13
 
 
-    l = dict(Weight=400, Width=200)
+    l = dict(Weight=400, Width=20)
     lmapped = aam(l)
     print('0 loc', l)
     print('0 loc mapped', lmapped)
