@@ -2,6 +2,8 @@
 
 from __future__ import print_function, division, absolute_import
 
+## caching
+import functools
 
 from warnings import warn
 import os
@@ -32,6 +34,30 @@ from mutatorMath.objects.location import Location
 import ufoProcessor.varModels
 from ufoProcessor.varModels import VariationModelMutator
 from ufoProcessor.emptyPen import checkGlyphIsEmpty
+
+
+_memoizeCache = dict()
+
+def memoize(function):
+    global _memoizeCache
+    print("##################### calling memoize #####################", function)    
+    @functools.wraps(function)
+    def wrapper(self, *args, **kwargs):        
+        global _memoizeCache
+        key = (function.__name__, self, args, tuple((key, kwargs[key]) for key in sorted(kwargs.keys())))
+        print("##################### calling wrapper #####################", key)    
+        if key in _memoizeCache:
+            print("##################### cached result #####################", key)
+            return _memoizeCache[key]
+        else:
+            print("##################### calling wrapped #####################", function)
+            result = function(self, *args, **kwargs)
+            _memoizeCache[key] = result
+            print("##################### cached added key #####################", key)
+            return result
+    return wrapper
+#####
+
 
 
 try:
@@ -83,6 +109,8 @@ def getLayer(f, layerName):
 
     2022 work on support for DS5
     https://github.com/fonttools/fonttools/blob/main/Lib/fontTools/designspaceLib/split.py#L53
+    
+    2022 10 extrapolate in varlib only works for -1, 0, 1 systems. So we continue to rely on MutatorMath. 
 
 
 """
@@ -292,18 +320,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def getVariationModel(self, items, axes, bias=None):
         # Return either a mutatorMath or a varlib.model object for calculating.
-        print(f"getVariationModel items {items}")
-        print(f"getVariationModel bias {bias}")
         try:
             if self.useVarlib:
                 # use the varlib variation model
-                print("\t\t## into getVariationModel varlib")
                 try:
                     return dict(), VariationModelMutator(items, axes=self.axes, extrapolate=True)
                 except TypeError:
-                    print(f"@@ typeError in getVariationModel {ufoProcessor.varModels.__file__}")
                     import fontTools.varLib.models
-                    print(f"@@ {fontTools.varLib.models.__file__}")
                     error = traceback.format_exc()
                     print(error)
                     return {}, None
@@ -314,30 +337,24 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     return {}, None
             else:
                 # use mutatormath model
-                #print("\t\t## into getVariationModel mutatormath")
                 axesForMutator = self.getMutatorAxes()
-                #print("\t\t## into getVariationModel axesForMutator", axesForMutator)
-                #print("\t\t## into getVariationModel items", items)
-                #print("\t\t## into getVariationModel bias", bias)
-                return buildMutator(items, axes=axesForMutator, bias=bias)
+                # mutator will be confused by discrete axis values.
+                # the bias needs to be for the continuour axes only
+                biasForMutator, _ = self.splitLocation(bias)
+                return buildMutator(items, axes=axesForMutator, bias=biasForMutator)
         except:
             error = traceback.format_exc()
-            print("\t\t## into getVariationModel Error", error)
             self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
             return {}, None
 
     def getInfoMutator(self, discreteLocation=None):
         """ Returns a info mutator """
-        print(f"\t\t## @@ into getInfoMutator {discreteLocation}")
-        #if self._infoMutator:
-        #    return self._infoMutator
         infoItems = []
         if discreteLocation is not None:
             sources = self.findSourcesForDiscreteLocation(discreteLocation)
         else:
             sources = self.sources
         for sourceDescriptor in sources:
-            print(f"\t\t##---> into getInfoMutator  {sourceDescriptor.name}")
             if sourceDescriptor.layerName is not None:
                 continue
             continuous, discrete = self.splitLocation(sourceDescriptor.location)
@@ -349,10 +366,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 infoItems.append((loc, sourceFont.info.toMathInfo()))
             else:
                 infoItems.append((loc, self.mathInfoClass(sourceFont.info)))
-            print(f"\t\t##---> getInfoMutator  {loc}")
 
         infoBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
-        print("@@5")
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=infoBias)
         return self._infoMutator
 
@@ -361,28 +376,17 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             If no pairs are given: calculate the whole table.
             If pairs are given then query the sources for a value and make a mutator only with those values.
         """
-        #if self._kerningMutator and pairs == self._kerningMutatorPairs:
-        #    return self._kerningMutator
-        #@@
-        print(f"\t\t## @@ into getKerningMutator {discreteLocation}")
         if discreteLocation is not None:
             sources = self.findSourcesForDiscreteLocation(discreteLocation)
-            print(f"\t\t## @@ into getKerningMutator sources 1 {sources}")
         else:
             sources = self.sources
-            print(f"\t\t## @@ into getKerningMutator sources 2 {sources}")
         kerningItems = []
         foregroundLayers = [None, 'foreground', 'public.default']
         if pairs is None:
-            print("\t\t\t\t\t ** 1")
             for sourceDescriptor in sources:
-                print("\t\t\t\t\t ** 2")
-                print(f"\t\t##---> into getKerningMutator {sourceDescriptor.name}")
                 if sourceDescriptor.layerName not in foregroundLayers:
-                    print("\t\t\t\t\t ** 3")
                     continue
                 if not sourceDescriptor.muteKerning:
-                    print("\t\t\t\t\t ** 4")
                     # filter this XX @@
                     continuous, discrete = self.splitLocation(sourceDescriptor.location)
                     loc = Location(continuous)
@@ -390,8 +394,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     if sourceFont is None: continue
                     # this makes assumptions about the groups of all sources being the same.
                     kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
-                print("\t\t\t\t\t ** 5")
-                print(f"\t\t##---> into kerningItems {kerningItems}")
         else:
             self._kerningMutatorPairs = pairs
             for sourceDescriptor in sources:
@@ -416,11 +418,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                                 sparseKerning[pair] = v
                         kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
         kerningBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
-        print("@@6")
-        print(f"\t\t## getKerningMutator {kerningItems}")
         bias, thing = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=kerningBias) #xx
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=kerningBias)
-        #print('self._kerningMutator', self._kerningMutator)
         return self._kerningMutator
 
     def filterThisLocation(self, location, mutedAxes):
@@ -444,18 +443,22 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             del new[mutedAxisName]
         return ignoreMaster, new
 
+    # @memoize
+    # def getGlyphMutator(self, glyphName, decomposeComponents=False, **discreteLocation):
+    #     glyphs = self.collectSourcesForGlyph(glyphName, decomposeComponents=decomposeComponents, **discreteLocation)
+        
+    #     print("build for glyphName", glyphName, discreteLocation)
+    #     return "a mutator"
+
+    #@memoize
     def getGlyphMutator(self, glyphName,
             decomposeComponents=False,
-            fromCache=None,
-            discreteLocation=None,  
+            #fromCache=None,
+            **discreteLocation,  
             ):
+        fromCache = False
         # make a mutator / varlib object for glyphName, with the masters for the given discrete location
-        #cacheKey = (glyphName, decomposeComponents)
-        #if cacheKey in self._glyphMutators and fromCache:
-        #    return self._glyphMutators[cacheKey]
-        items = self.collectMastersForGlyph(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
-        #for item in items:
-        #    print('\t\t## getGlyphMutator items', item)
+        items = self.collectSourcesForGlyph(glyphName, decomposeComponents=decomposeComponents, **discreteLocation)
         new = []
         for a, b, c in items:
             if hasattr(b, "toMathGlyph"):
@@ -465,26 +468,18 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             else:
                 new.append((a,self.mathGlyphClass(b)))
         thing = None
-        # print('\t\t## getGlyphMutator new', new)
-        #try:
-
-        print(f'@@4 {glyphName}')
-        print(f'@@4 {glyphName} new', new)
-        #print('@@4 serializedAxes', serializedAxes)
         thisBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
-        print('@@4 thisBias', thisBias)
         bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=thisBias) #xx
-            #print('\t\t## getGlyphMutator bias', bias)
-            #print('\t\t## getGlyphMutator thing', thing)
-        #except TypeError:
-        #    #print('problems')
-        #    self.toolLog.append("getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
-        #    self.problems.append("\tCan't make processor for glyph %s" % (glyphName))
-        #if thing is not None:
-        #    self._glyphMutators[cacheKey] = thing
         return thing
 
-    def collectMastersForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
+    # @memoize
+    # def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, **discreteLocation):
+    #     discreteLocation = self.buildDiscreteLocation(discreteLocation)
+    #     sources = self.findSourcesForDiscreteLocation(**discreteLocation)
+    #     return []
+
+    # @memoize
+    def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
         """ Return a glyph mutator.defaultLoc
             decomposeComponents = True causes the source glyphs to be decomposed first
             before building the mutator. That gives you instances that do not depend
@@ -496,13 +491,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         empties = []
         foundEmpty = False
         # 
-        #print(f'collectMastersForGlyph discreteLocation: {discreteLocation}')
         if discreteLocation is not None:
             sources = self.findSourcesForDiscreteLocation(discreteLocation)
         else:
             sources = self.sources
-        #
-        #print(f'collectMastersForGlyph sources: {sources}')
         for sourceDescriptor in sources:
             if not os.path.exists(sourceDescriptor.path):
                 #kthxbai
@@ -595,8 +587,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 isDefault, isEmpty = p
                 if isEmpty:
                     checkedItems.append(items[i])
-        #print('checkedItems', checkedItems)
         return checkedItems
+
+    #collectMastersForGlyph = collectSourcesForGlyph
 
     def getNeutralFont(self):
         # Return a font object for the neutral font
@@ -613,7 +606,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def findDefault(self):
         """Set and return SourceDescriptor at the default location or None.
-
         The default location is the set of all `default` values in user space of all axes.
         """
         self.default = None
@@ -680,10 +672,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             bend=False):
         """ Generate a font object for this instance """
         if doRules is not None:
-            warn('The doRules argument is deprecated', DeprecationWarning, stacklevel=2)
+            warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
         continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
-        print(f"\t ## @@@ makeInstance continuousLocation {continuousLocation}")
-        print(f"\t ## makeInstance discreteLocation {discreteLocation}")
         font = self._instantiateFont(None)
         # make fonty things here
         loc = Location(continuousLocation)
@@ -692,15 +682,12 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         if self.isAnisotropic(loc):
             anisotropic = True
             locHorizontal, locVertical = self.splitAnisotropic(loc)
-        print("anisotropic", anisotropic, locHorizontal, locVertical)
-        print("instanceDescriptor.kerning", instanceDescriptor.kerning)
         if instanceDescriptor.kerning:
             if pairs:
                 try:
                     kerningMutator = self.getKerningMutator(pairs=pairs, discreteLocation=discreteLocation)
                     kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                     kerningObject.extractKerning(font)
-                    print('\t\t\tinstance kerning @@2b: ', font.kerning.items())
                 except:
                     self.problems.append("Could not make kerning for %s. %s" % (loc, traceback.format_exc()))
             else:
@@ -708,7 +695,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 if kerningMutator is not None:
                     kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                     kerningObject.extractKerning(font)
-                    print('\t\t\tinstance kerning @@2a: ', font.kerning.items())
         # # make the info
         try:
             infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
@@ -793,8 +779,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     glyphInstanceObject = glyphMutator.makeInstance(continuousLocation, bend=bend)
                 else:
                     # split anisotropic location into horizontal and vertical components
-                    print(f"\t\t\tmaking anisotropic glyph at {locHorizontal} {locVertical}")
-                    #horizontal, vertical = self.splitAnisotropic(continuousLocation)
                     horizontalGlyphInstanceObject = glyphMutator.makeInstance(locHorizontal, bend=bend)
                     verticalGlyphInstanceObject = glyphMutator.makeInstance(locVertical, bend=bend)
                     # merge them again
@@ -949,7 +933,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     def getDiscreteLocations(self):
         # return a list of all permutated discrete locations
         # do we have a list of ordered axes?
-        #print("ordered axes", self.getOrderedDiscreteAxes())
         values = []
         names = []
         discreteCoordinates = []
@@ -992,19 +975,10 @@ if __name__ == "__main__":
     dsp = DesignSpaceProcessor(useVarlib=useVarlibPref)
     print(f'useVarLib {dsp.useVarlib}')
     ds5Path = "../../Tests/202206 discrete spaces/test.ds5.designspace"
-    print(f"Can we find the ds5 example at {ds5Path}? {os.path.exists(ds5Path)}")
 
     dsp.read(ds5Path)
     dsp.loadFonts()
-    print(f"has discrete axes: {dsp.hasDiscreteAxes()}")
-    print('These are the axes\n', dsp.axes)
-    print(f'\nSo we will have {len(dsp.getDiscreteLocations())} continuous designspaces in this document')
-
     dsp.generateUFO()
-
-    #for discreteLocation in dsp.getDiscreteLocations():
-    #    print(f"\titerating through discreteLocations: {discreteLocation}")
-    #    aGlyphs = dsp.collectMastersForGlyph("glyphOne", discreteLocation=discreteLocation)
-    #    for a in aGlyphs:
-    #        print(f"\t\t{a}")
             
+print(_memoizeCache)
+print('done')
