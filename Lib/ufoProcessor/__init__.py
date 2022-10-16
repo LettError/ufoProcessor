@@ -1,6 +1,27 @@
 # coding: utf-8
-
 from __future__ import print_function, division, absolute_import
+
+"""
+    UFOProcessor no longer executes the rules in the designspace. Rules now have complex behaviour and need
+    to be properly compiled and executed by something that has an overview of all the features.
+    
+    2022 work on support for DS5
+    https://github.com/fonttools/fonttools/blob/main/Lib/fontTools/designspaceLib/split.py#L53
+    
+    2022 10 extrapolate in varlib only works for -1, 0, 1 systems. So we continue to rely on MutatorMath. 
+
+
+"""
+
+
+"""
+    build() is a convenience function for reading and executing a designspace file.
+        documentPath: path to the designspace file.
+        outputUFOFormatVersion: integer, 2, 3. Format for generated UFOs. Note: can be different from source UFO format.
+        useVarlib: True if you want the geometry to be generated with varLib.model instead of mutatorMath.
+"""
+
+
 
 ## caching
 import functools
@@ -19,7 +40,7 @@ from fontTools.varLib.models import VariationModel, normalizeLocation
 import defcon
 import fontParts.fontshell.font
 import defcon.objects.font
-from defcon.objects.font import Font
+#from defcon.objects.font import Font
 from defcon.pens.transformPointPen import TransformPointPen
 from defcon.objects.component import _defaultTransformation
 from fontMath.mathGlyph import MathGlyph
@@ -36,12 +57,20 @@ from ufoProcessor.varModels import VariationModelMutator
 from ufoProcessor.emptyPen import checkGlyphIsEmpty
 
 
+try:
+    from ._version import version as __version__
+except ImportError:
+    __version__ = "0.0.0+unknown"
+
+
 _memoizeCache = dict()
 
-
 def immutify(obj):
+    # make an immutable version of this object. 
+    # assert immutify(10) == (10,)
+    # assert immutify([10, 20, "a"]) == (10, 20, 'a')
+    # assert immutify(dict(foo="bar", world=["a", "b"])) == ('foo', ('bar',), 'world', ('a', 'b'))
     hashValues = []
-        
     if isinstance(obj, dict):
         for key, value in obj.items():
             hashValues.extend([key, immutify(value)])
@@ -50,12 +79,7 @@ def immutify(obj):
             hashValues.extend(immutify(value))
     else:
         hashValues.append(obj)
-
     return tuple(hashValues)
-    
-#assert immutify(10) == (10,)
-#assert immutify([10, 20, "a"]) == (10, 20, 'a')
-#assert immutify(dict(foo="bar", world=["a", "b"])) == ('foo', ('bar',), 'world', ('a', 'b'))
 
 def memoize(function):
     @functools.wraps(function)
@@ -71,14 +95,6 @@ def memoize(function):
             return result
     return wrapper
 #####
-
-
-
-try:
-    from ._version import version as __version__
-except ImportError:
-    __version__ = "0.0.0+unknown"
-
 
 class UFOProcessorError(Exception):
     def __init__(self, msg, obj=None):
@@ -106,36 +122,6 @@ def getLayer(f, layerName):
             return f.getLayer(layerName)
     return None
 
-"""
-    Processing of rules when generating UFOs.
-    Swap the contents of two glyphs.
-        - contours
-        - components
-        - width
-        - group membership
-        - kerning
-
-    + Remap components so that glyphs that reference either of the swapped glyphs maintain appearance
-    + Keep the unicode value of the original glyph.
-
-    Notes
-    Parking the glyphs under a swapname is a bit lazy, but at least it guarantees the glyphs have the right parent.
-
-    2022 work on support for DS5
-    https://github.com/fonttools/fonttools/blob/main/Lib/fontTools/designspaceLib/split.py#L53
-    
-    2022 10 extrapolate in varlib only works for -1, 0, 1 systems. So we continue to rely on MutatorMath. 
-
-
-"""
-
-
-"""
-    build() is a convenience function for reading and executing a designspace file.
-        documentPath: path to the designspace file.
-        outputUFOFormatVersion: integer, 2, 3. Format for generated UFOs. Note: can be different from source UFO format.
-        useVarlib: True if you want the geometry to be generated with varLib.model instead of mutatorMath.
-"""
 
 def build(
         documentPath,
@@ -265,7 +251,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         # option to execute the rules
         # make sure we're not trying to overwrite a newer UFO format
         self.loadFonts()
-        self.findDefault()
+        #self.findDefault()
         if self.default is None:
             # we need one to genenerate
             raise UFOProcessorError("Can't generate UFO from this designspace: no default font.", self)
@@ -353,13 +339,13 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 # use mutatormath model
                 axesForMutator = self.getMutatorAxes()
                 # mutator will be confused by discrete axis values.
-                # the bias needs to be for the continuour axes only
+                # the bias needs to be for the continuous axes only
                 biasForMutator, _ = self.splitLocation(bias)
                 return buildMutator(items, axes=axesForMutator, bias=biasForMutator)
         #except:
         #    error = traceback.format_exc()
         #    self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
-            return {}, None
+        return {}, None
 
     def getInfoMutator(self, discreteLocation=None):
         """ Returns a info mutator """
@@ -380,7 +366,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 infoItems.append((loc, sourceFont.info.toMathInfo()))
             else:
                 infoItems.append((loc, self.mathInfoClass(sourceFont.info)))
-
         infoBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=infoBias)
         return self._infoMutator
@@ -467,7 +452,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     @memoize
     def getGlyphMutator(self, glyphName,
             decomposeComponents=False,
-            #fromCache=None,
             **discreteLocation,  
             ):
         fromCache = False
@@ -485,12 +469,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         thisBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
         bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=thisBias) #xx
         return thing
-
-    # @memoize
-    # def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, **discreteLocation):
-    #     discreteLocation = self.buildDiscreteLocation(discreteLocation)
-    #     sources = self.findSourcesForDiscreteLocation(**discreteLocation)
-    #     return []
 
     @memoize
     def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
@@ -741,27 +719,24 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         #     #    records.append((nameID, ))
         except:
             self.problems.append("Could not make fontinfo for %s. %s" % (loc, traceback.format_exc()))
-        # for sourceDescriptor in self.sources:
-        #     if sourceDescriptor.copyInfo:
-        #         # this is the source
-        #         if self.fonts[sourceDescriptor.name] is not None:
-        #             self._copyFontInfo(self.fonts[sourceDescriptor.name].info, font.info)
-        #     if sourceDescriptor.copyLib:
-        #         # excplicitly copy the font.lib items
-        #         if self.fonts[sourceDescriptor.name] is not None:
-        #             for key, value in self.fonts[sourceDescriptor.name].lib.items():
-        #                 font.lib[key] = value
-        #     if sourceDescriptor.copyGroups:
-        #         if self.fonts[sourceDescriptor.name] is not None:
-        #             sides = font.kerningGroupConversionRenameMaps.get('side1', {})
-        #             sides.update(font.kerningGroupConversionRenameMaps.get('side2', {}))
-        #             for key, value in self.fonts[sourceDescriptor.name].groups.items():
-        #                 if key not in sides:
-        #                     font.groups[key] = value
-        #     if sourceDescriptor.copyFeatures:
-        #         if self.fonts[sourceDescriptor.name] is not None:
-        #             featuresText = self.fonts[sourceDescriptor.name].features.text
-        #             font.features.text = featuresText
+        for sourceDescriptor in self.sources:
+            if sourceDescriptor.copyInfo:
+                # this is the source
+                if self.fonts[sourceDescriptor.name] is not None:
+                    self._copyFontInfo(self.fonts[sourceDescriptor.name].info, font.info)
+            if sourceDescriptor.copyLib:
+                # excplicitly copy the font.lib items
+                if self.fonts[sourceDescriptor.name] is not None:
+                    for key, value in self.fonts[sourceDescriptor.name].lib.items():
+                        font.lib[key] = value
+            if sourceDescriptor.copyGroups:
+                if self.fonts[sourceDescriptor.name] is not None:
+                    for key, value in self.fonts[sourceDescriptor.name].groups.items():
+                        font.groups[key] = value
+            if sourceDescriptor.copyFeatures:
+                if self.fonts[sourceDescriptor.name] is not None:
+                    featuresText = self.fonts[sourceDescriptor.name].features.text
+                    font.features.text = featuresText
         # glyphs
         if glyphNames:
             selectedGlyphNames = glyphNames
@@ -919,8 +894,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if copy:
                 value = getattr(sourceInfo, infoAttribute)
                 setattr(targetInfo, infoAttribute, value)
-
-
+                
     # some ds5 work
     def getOrderedDiscreteAxes(self):
         # return the list of discrete axis objects, in the right order
@@ -978,41 +952,33 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 sources.append(s)
         return sources
 
+    # caching
     def changed(self):
         _memoizeCache.clear()
+
+    def glyphChanged(self, glyphName):
+        for key in list(_memoizeCache.keys()):            
+            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[1] == glyphName:
+                del _memoizeCache[key]
         
 
 if __name__ == "__main__":
     # while we're testing
     
     import ufoProcessor
-    print(ufoProcessor.__file__)
+    #print(ufoProcessor.__file__)
     import ufoProcessor.varModels
-    print(ufoProcessor.varModels.__file__)
+    #print(ufoProcessor.varModels.__file__)
 
-    useVarlibPref = False
+    useVarlibPref = True
 
     dsp = DesignSpaceProcessor(useVarlib=useVarlibPref)
-    print(f'useVarLib {dsp.useVarlib}')
+    #print(f'useVarLib {dsp.useVarlib}')
     ds5Path = "../../Tests/202206 discrete spaces/test.ds5.designspace"
 
     dsp.read(ds5Path)
     dsp.loadFonts()
-    s1 = time.process_time()
     dsp.generateUFO()
-    s2 = time.process_time()
-    d1 = s2-s1
-    print('duration 1', d1)
-    dsp.changed()
-    dsp.generateUFO()
-    dsp.generateUFO()
-    dsp.generateUFO()
-    dsp.generateUFO()
-    d3 = .25*(time.process_time()-s2)
-    print('duration 2', d3)
-
             
-#print(_memoizeCache.keys())
-print(len(_memoizeCache))
-
+print(f"{len(_memoizeCache)} items in _memoizeCache")
 print('done')

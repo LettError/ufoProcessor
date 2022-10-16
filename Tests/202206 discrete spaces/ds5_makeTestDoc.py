@@ -59,6 +59,8 @@ for c in [a1.minimum, a1.maximum]:
 			s1.familyName = "MasterFamilyName"
 			if default == masterLocation:
 				s1.copyGroups = True
+				s1.copyFeatures = True
+				s1.copyInfo = True
 			td1 = ["One", "Two", "Three"][(d1-1)]
 			if c == 400:
 				tc = "Narrow"
