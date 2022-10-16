@@ -38,34 +38,30 @@ from ufoProcessor.emptyPen import checkGlyphIsEmpty
 
 _memoizeCache = dict()
 
-def immutify(d):
-    new = []
-    if isinstance(d, dict):
-        for k, v in d.items():
-            if isinstance(v, dict):
-                new.append((k, immutify(v)))
-            elif isinstance(v, list):
-                new.append((k, tuple(v)))
-            else:
-                new.append((k, v))
-    elif isinstance(d, list):
-        [new.append(immutify(a)) for a in d]
-    else:
-        new.append(d)
-    return tuple(new)
 
-#d = {'name': {'other': 12, 'list': [1,2,4,None], 'location': {'wdth':3, 'wght':(400,100)}}}
-#print(d)
-#print(immutify(d))
+def immutify(obj):
+    hashValues = []
+        
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            hashValues.extend([key, immutify(value)])
+    elif isinstance(obj, list):
+        for value in obj:
+            hashValues.extend(immutify(value))
+    else:
+        hashValues.append(obj)
+
+    return tuple(hashValues)
+    
+#assert immutify(10) == (10,)
+#assert immutify([10, 20, "a"]) == (10, 20, 'a')
+#assert immutify(dict(foo="bar", world=["a", "b"])) == ('foo', ('bar',), 'world', ('a', 'b'))
 
 def memoize(function):
     @functools.wraps(function)
     def wrapper(self, *args, **kwargs):        
-        #print('args', args)
-        #print('kwargs', kwargs)
         immutableargs = tuple([immutify(a) for a in args])
         immutablekwargs = immutify(kwargs)
-        #print('immutableargs', immutableargs)
         key = (function.__name__, self, immutableargs, immutify(kwargs))
         if key in _memoizeCache:
             return _memoizeCache[key]
