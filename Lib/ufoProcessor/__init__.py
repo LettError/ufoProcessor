@@ -6,7 +6,7 @@ from __future__ import print_function, division, absolute_import
 import functools
 
 from warnings import warn
-import os
+import os, time
 import logging, traceback
 import collections
 import itertools
@@ -40,13 +40,18 @@ _memoizeCache = dict()
 
 def immutify(d):
     new = []
-    for k, v in d.items():
-        if isinstance(v, dict):
-            new.append((k, immutify(v)))
-        elif isinstance(v, list):
-            new.append((k, tuple(v)))
-        else:
-            new.append((k, v))
+    if isinstance(d, dict):
+        for k, v in d.items():
+            if isinstance(v, dict):
+                new.append((k, immutify(v)))
+            elif isinstance(v, list):
+                new.append((k, tuple(v)))
+            else:
+                new.append((k, v))
+    elif isinstance(d, list):
+        [new.append(immutify(a)) for a in d]
+    else:
+        new.append(d)
     return tuple(new)
 
 #d = {'name': {'other': 12, 'list': [1,2,4,None], 'location': {'wdth':3, 'wght':(400,100)}}}
@@ -54,21 +59,19 @@ def immutify(d):
 #print(immutify(d))
 
 def memoize(function):
-    global _memoizeCache
-    #print("##################### calling memoize #####################", function)    
     @functools.wraps(function)
     def wrapper(self, *args, **kwargs):        
+        #print('args', args)
+        #print('kwargs', kwargs)
+        immutableargs = tuple([immutify(a) for a in args])
         immutablekwargs = immutify(kwargs)
-        key = (function.__name__, self, args, immutify(kwargs))
-        #print("##################### calling wrapper #####################", key, key in _memoizeCache)
+        #print('immutableargs', immutableargs)
+        key = (function.__name__, self, immutableargs, immutify(kwargs))
         if key in _memoizeCache:
-            #print("##################### cached result #####################", key)
             return _memoizeCache[key]
         else:
-            #print("##################### wrapped #####################", function)
             result = function(self, *args, **kwargs)
             _memoizeCache[key] = result
-            #print("##################### added key #####################", key)
             return result
     return wrapper
 #####
@@ -961,6 +964,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             discreteCoordinates.append({a:b for a,b in zip(names,r)})
         return discreteCoordinates
 
+    @memoize
     def findSourcesForDiscreteLocation(self, discreteLocDict):
         # return a list of all sourcedescriptors that share the values in the discrete loc tuple
         # discreteLocDict {'countedItems': 1.0, 'outlined': 0.0}, {'countedItems': 1.0, 'outlined': 1.0}
@@ -978,6 +982,10 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 sources.append(s)
         return sources
 
+    def changed(self):
+        _memoizeCache.clear()
+        
+
 if __name__ == "__main__":
     # while we're testing
     
@@ -994,7 +1002,21 @@ if __name__ == "__main__":
 
     dsp.read(ds5Path)
     dsp.loadFonts()
+    s1 = time.process_time()
     dsp.generateUFO()
+    s2 = time.process_time()
+    d1 = s2-s1
+    print('duration 1', d1)
+    dsp.changed()
+    dsp.generateUFO()
+    dsp.generateUFO()
+    dsp.generateUFO()
+    dsp.generateUFO()
+    d3 = .25*(time.process_time()-s2)
+    print('duration 2', d3)
+
             
-print(_memoizeCache)
+#print(_memoizeCache.keys())
+print(len(_memoizeCache))
+
 print('done')
