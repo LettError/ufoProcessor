@@ -38,22 +38,37 @@ from ufoProcessor.emptyPen import checkGlyphIsEmpty
 
 _memoizeCache = dict()
 
+def immutify(d):
+    new = []
+    for k, v in d.items():
+        if isinstance(v, dict):
+            new.append((k, immutify(v)))
+        elif isinstance(v, list):
+            new.append((k, tuple(v)))
+        else:
+            new.append((k, v))
+    return tuple(new)
+
+#d = {'name': {'other': 12, 'list': [1,2,4,None], 'location': {'wdth':3, 'wght':(400,100)}}}
+#print(d)
+#print(immutify(d))
+
 def memoize(function):
     global _memoizeCache
-    print("##################### calling memoize #####################", function)    
+    #print("##################### calling memoize #####################", function)    
     @functools.wraps(function)
     def wrapper(self, *args, **kwargs):        
-        global _memoizeCache
-        key = (function.__name__, self, args, tuple((key, kwargs[key]) for key in sorted(kwargs.keys())))
-        print("##################### calling wrapper #####################", key)    
+        immutablekwargs = immutify(kwargs)
+        key = (function.__name__, self, args, immutify(kwargs))
+        #print("##################### calling wrapper #####################", key, key in _memoizeCache)
         if key in _memoizeCache:
-            print("##################### cached result #####################", key)
+            #print("##################### cached result #####################", key)
             return _memoizeCache[key]
         else:
-            print("##################### calling wrapped #####################", function)
+            #print("##################### wrapped #####################", function)
             result = function(self, *args, **kwargs)
             _memoizeCache[key] = result
-            print("##################### cached added key #####################", key)
+            #print("##################### added key #####################", key)
             return result
     return wrapper
 #####
@@ -225,7 +240,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def __init__(self, readerClass=None, writerClass=None, fontClass=None, ufoVersion=3, useVarlib=False):
         super(DesignSpaceProcessor, self).__init__(readerClass=readerClass, writerClass=writerClass)
-
         self.ufoVersion = ufoVersion         # target UFO version
         self.useVarlib = useVarlib
         self.roundGeometry = False
@@ -320,7 +334,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def getVariationModel(self, items, axes, bias=None):
         # Return either a mutatorMath or a varlib.model object for calculating.
-        try:
+        #try:
+        if True:
             if self.useVarlib:
                 # use the varlib variation model
                 try:
@@ -342,9 +357,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 # the bias needs to be for the continuour axes only
                 biasForMutator, _ = self.splitLocation(bias)
                 return buildMutator(items, axes=axesForMutator, bias=biasForMutator)
-        except:
-            error = traceback.format_exc()
-            self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
+        #except:
+        #    error = traceback.format_exc()
+        #    self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
             return {}, None
 
     def getInfoMutator(self, discreteLocation=None):
@@ -450,7 +465,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     #     print("build for glyphName", glyphName, discreteLocation)
     #     return "a mutator"
 
-    #@memoize
+    @memoize
     def getGlyphMutator(self, glyphName,
             decomposeComponents=False,
             #fromCache=None,
@@ -478,7 +493,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     #     sources = self.findSourcesForDiscreteLocation(**discreteLocation)
     #     return []
 
-    # @memoize
+    @memoize
     def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
         """ Return a glyph mutator.defaultLoc
             decomposeComponents = True causes the source glyphs to be decomposed first
@@ -758,14 +773,15 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             # should be the glyphorder from the default, yes?
             font.lib['public.glyphOrder'] = selectedGlyphNames
         for glyphName in selectedGlyphNames:
-            try:
+            #try:
+            if True:
                 glyphMutator = self.getGlyphMutator(glyphName, discreteLocation=discreteLocation)
                 if glyphMutator is None:
                     self.problems.append("Could not make mutator for glyph %s" % (glyphName))
                     continue
-            except:
-                self.problems.append("Could not make mutator for glyph %s %s" % (glyphName, traceback.format_exc()))
-                continue
+            #except:
+            #    self.problems.append("Could not make mutator for glyph %s %s" % (glyphName, traceback.format_exc()))
+            #    continue
             glyphData = {}
             font.newGlyph(glyphName)
             font[glyphName].clear()

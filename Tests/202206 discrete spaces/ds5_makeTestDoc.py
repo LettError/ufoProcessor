@@ -79,7 +79,7 @@ steps = 8
 extrapolateAmount = 100
 
 
-interestingWeightValues = [(200, 1200), 300, 400, 700, 1000, 1100]
+interestingWeightValues = [(400, 700), 300, 400, 700, 1000, 1100]
 
 mathModelPrefKey = "com.letterror.mathModelPref"
 mathModelVarlibPref = "previewVarLib"
