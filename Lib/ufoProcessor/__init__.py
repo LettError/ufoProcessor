@@ -635,6 +635,18 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 loc[axisDescriptor.name] = axisDescriptor.default
         return loc
 
+    def updateFonts(self, fontObjects):
+        #self.fonts[sourceDescriptor.name] = None
+        hasUpdated = False
+        for newFont in fontObjects:
+            for fontName, haveFont in self.fonts.items():
+                if haveFont.path == newFont.path and id(haveFont)!=id(newFont):
+                    print(f"updating {self.fonts[fontName]} with {newFont}")
+                    self.fonts[fontName] = newFont
+                    hasUpdated = True
+        if hasUpdated:
+            self.changed()
+        
     def loadFonts(self, reload=False):
         # Load the fonts and find the default candidate based on the info flag
         if self._fontsLoaded and not reload:
@@ -645,6 +657,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 # make sure it has a unique name
                 sourceDescriptor.name = "master.%d" % i
             if sourceDescriptor.name not in self.fonts:
+                #
                 if os.path.exists(sourceDescriptor.path):
                     self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
                     self.problems.append("loaded master from %s, layer %s, format %d" % (sourceDescriptor.path, sourceDescriptor.layerName, getUFOVersion(sourceDescriptor.path)))
@@ -982,9 +995,11 @@ if __name__ == "__main__":
     instancesPathVarLib = "../../Tests/202206 discrete spaces/instances_varlib"
 
     for useVarlibPref, renameInstancesPath in [(True, instancesPathVarLib), (False, instancesPathMutMath)]:
+        print(f"\n\n\t\t{useVarlibPref}")
         dsp = DesignSpaceProcessor(useVarlib=useVarlibPref)
         dsp.read(ds5Path)
         dsp.loadFonts()
+        dsp.updateFonts(AllFonts())
         dsp.generateUFO()
         if os.path.exists(renameInstancesPath):
             shutil.rmtree(renameInstancesPath)
