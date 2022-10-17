@@ -81,6 +81,7 @@ def immutify(obj):
         hashValues.append(obj)
     return tuple(hashValues)
 
+
 def memoize(function):
     @functools.wraps(function)
     def wrapper(self, *args, **kwargs):        
@@ -634,7 +635,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             else:
                 loc[axisDescriptor.name] = axisDescriptor.default
         return loc
-
+    
     def updateFonts(self, fontObjects):
         #self.fonts[sourceDescriptor.name] = None
         hasUpdated = False
@@ -974,20 +975,24 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     # caching
     def changed(self):
+        # clears everything
         _memoizeCache.clear()
 
     def glyphChanged(self, glyphName):
+        # clears this one specific glyph
         for key in list(_memoizeCache.keys()):            
-            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[1] == glyphName:
+            #print(f"glyphChanged {[(i,m) for i, m in enumerate(key)]} {glyphName}")
+            # the glyphname is hiding quite deep in key[2]
+            # (('glyphTwo',),)
+            # this is because of how immutify does it. Could be different I suppose but this works
+            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[2][0][0] == glyphName:
                 del _memoizeCache[key]
         
 
 if __name__ == "__main__":
     # while we're testing
     import shutil
-
     import ufoProcessor
-    import ufoProcessor.varModels
 
     ds5Path = "../../Tests/202206 discrete spaces/test.ds5.designspace"
     instancesPath = "../../Tests/202206 discrete spaces/instances"
@@ -999,11 +1004,14 @@ if __name__ == "__main__":
         dsp = DesignSpaceProcessor(useVarlib=useVarlibPref)
         dsp.read(ds5Path)
         dsp.loadFonts()
+        print(dsp.glyphNames)
         dsp.updateFonts(AllFonts())
         dsp.generateUFO()
+        dsp.glyphChanged("glyphOne")
         if os.path.exists(renameInstancesPath):
             shutil.rmtree(renameInstancesPath)
         shutil.move(instancesPath, renameInstancesPath)
             
 print(f"{len(_memoizeCache)} items in _memoizeCache")
 print('done')
+
