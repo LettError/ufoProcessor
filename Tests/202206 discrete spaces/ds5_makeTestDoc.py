@@ -20,6 +20,7 @@ a1 = AxisDescriptor()
 a1.minimum = 400
 a1.maximum = 1000
 a1.default = 400
+a1.map = ((400,400), (700,900), (1000,1000))
 a1.name = "width"
 a1.tag = "wdth"
 a1.axisOrdering = 1
@@ -45,13 +46,15 @@ default = {a1.name: a1.default, a2.name: a2.default, a3.name: a3.default}
 
 # add sources
 
+
+# public.skipExportGlyphs
+
 for c in [a1.minimum, a1.maximum]:
 	for d1 in a2.values:
 		for d2 in a3.values:
 
 			s1 = SourceDescriptor()
 			s1.path = os.path.join("masters", f"geometryMaster_c_{c}_d1_{d1}_d2_{d2}.ufo")
-			print(s1.path, os.path.exists(s1.path))
 			s1.name = f"geometryMaster{c} {d1} {d2}"
 			masterLocation = dict(width=c, countedItems=d1, outlined=d2)
 			s1.location = masterLocation
@@ -81,7 +84,7 @@ steps = 8
 extrapolateAmount = 100
 
 
-interestingWeightValues = [(400, 700), 300, 400, 700, 1000, 1100]
+interestingWeightValues = [(400, 700), 300, 400, 550, 700, 1000, 1100]
 
 mathModelPrefKey = "com.letterror.mathModelPref"
 mathModelVarlibPref = "previewVarLib"

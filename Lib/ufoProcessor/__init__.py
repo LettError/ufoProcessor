@@ -316,7 +316,14 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
 
     serializedAxes = property(getSerializedAxes, doc="a list of dicts with the axis values")
-
+    
+    def _setUseVarLib(self, useVarLib=True):
+        print("setting _setUseVarLib")
+        self.changed()
+        self.useVarLib = True
+    
+    useVarLib = property(_setUseVarLib, doc="set useVarLib to True use the varlib mathmodel. Set to False to use MutatorMath.")
+    
     def getVariationModel(self, items, axes, bias=None):
         # Return either a mutatorMath or a varlib.model object for calculating.
         #try:
@@ -964,21 +971,24 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
 if __name__ == "__main__":
     # while we're testing
-    
+    import shutil
+
     import ufoProcessor
-    #print(ufoProcessor.__file__)
     import ufoProcessor.varModels
-    #print(ufoProcessor.varModels.__file__)
 
-    useVarlibPref = True
-
-    dsp = DesignSpaceProcessor(useVarlib=useVarlibPref)
-    #print(f'useVarLib {dsp.useVarlib}')
     ds5Path = "../../Tests/202206 discrete spaces/test.ds5.designspace"
+    instancesPath = "../../Tests/202206 discrete spaces/instances"
+    instancesPathMutMath = "../../Tests/202206 discrete spaces/instances_mutMath"
+    instancesPathVarLib = "../../Tests/202206 discrete spaces/instances_varlib"
 
-    dsp.read(ds5Path)
-    dsp.loadFonts()
-    dsp.generateUFO()
+    for useVarlibPref, renameInstancesPath in [(True, instancesPathVarLib), (False, instancesPathMutMath)]:
+        dsp = DesignSpaceProcessor(useVarlib=useVarlibPref)
+        dsp.read(ds5Path)
+        dsp.loadFonts()
+        dsp.generateUFO()
+        if os.path.exists(renameInstancesPath):
+            shutil.rmtree(renameInstancesPath)
+        shutil.move(instancesPath, renameInstancesPath)
             
 print(f"{len(_memoizeCache)} items in _memoizeCache")
 print('done')
