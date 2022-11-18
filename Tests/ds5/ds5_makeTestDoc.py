@@ -54,13 +54,13 @@ for c in [a1.minimum, a1.maximum]:
 		for d2 in a3.values:
 
 			s1 = SourceDescriptor()
-			s1.path = os.path.join("masters", f"geometryMaster_c_{c}_d1_{d1}_d2_{d2}.ufo")
-			s1.name = f"geometryMaster{c} {d1} {d2}"
-			masterLocation = dict(width=c, countedItems=d1, outlined=d2)
-			s1.location = masterLocation
+			s1.path = os.path.join("sources", f"geometrySource_c_{c}_d1_{d1}_d2_{d2}.ufo")
+			s1.name = f"geometrySource{c} {d1} {d2}"
+			sourceLocation = dict(width=c, countedItems=d1, outlined=d2)
+			s1.location = sourceLocation
 			s1.kerning = True
-			s1.familyName = "MasterFamilyName"
-			if default == masterLocation:
+			s1.familyName = "SourceFamilyName"
+			if default == sourceLocation:
 				s1.copyGroups = True
 				s1.copyFeatures = True
 				s1.copyInfo = True
@@ -100,7 +100,6 @@ for c in interestingWeightValues:
 
 			s1 = InstanceDescriptor()
 			s1.path = os.path.join("instances", f"geometryInstance_c_{c}_d1_{d1}_d2_{d2}.ufo")
-			#print(s1.path, os.path.exists(s1.path))
 			s1.location = dict(width=c, countedItems=d1, outlined=d2)
 			s1.familyName = "InstanceFamilyName"
 			td1 = ["One", "Two", "Three"][(d1-1)]
@@ -118,7 +117,7 @@ for c in interestingWeightValues:
 			s1.info = True
 			doc.addInstance(s1)
 
-path = "test.ds5.designspace"
+path = "ds5.designspace"
 print(doc.lib)
 doc.write(path)
 
