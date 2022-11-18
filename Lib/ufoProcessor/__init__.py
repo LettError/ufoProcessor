@@ -319,7 +319,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     serializedAxes = property(getSerializedAxes, doc="a list of dicts with the axis values")
     
     def _setUseVarLib(self, useVarLib=True):
-        print("setting _setUseVarLib")
         self.changed()
         self.useVarLib = True
     
@@ -355,6 +354,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         #    self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
         return {}, None
 
+    @memoize
     def getInfoMutator(self, discreteLocation=None):
         """ Returns a info mutator """
         infoItems = []
@@ -378,6 +378,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=infoBias)
         return self._infoMutator
 
+    @memoize
     def getKerningMutator(self, pairs=None, discreteLocation=None):
         """ Return a kerning mutator, collect the sources, build mathGlyphs.
             If no pairs are given: calculate the whole table.
@@ -429,13 +430,14 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=kerningBias)
         return self._kerningMutator
 
+    @memoize
     def filterThisLocation(self, location, mutedAxes):
         # return location with axes is mutedAxes removed
         # this means checking if the location is a non-default value
         if not mutedAxes:
             return False, location
         defaults = {}
-        ignoreMaster = False
+        ignoreSource = False
         for aD in self.axes:
             defaults[aD.name] = aD.default
         new = {}
@@ -446,16 +448,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if mutedAxisName not in defaults:
                 continue
             if location[mutedAxisName] != defaults.get(mutedAxisName):
-                ignoreMaster = True
+                ignoreSource = True
             del new[mutedAxisName]
-        return ignoreMaster, new
-
-    # @memoize
-    # def getGlyphMutator(self, glyphName, decomposeComponents=False, **discreteLocation):
-    #     glyphs = self.collectSourcesForGlyph(glyphName, decomposeComponents=decomposeComponents, **discreteLocation)
-        
-    #     print("build for glyphName", glyphName, discreteLocation)
-    #     return "a mutator"
+        return ignoreSource, new
 
     @memoize
     def getGlyphMutator(self, glyphName,
@@ -463,7 +458,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             **discreteLocation,  
             ):
         fromCache = False
-        # make a mutator / varlib object for glyphName, with the masters for the given discrete location
+        # make a mutator / varlib object for glyphName, with the sources for the given discrete location
         items = self.collectSourcesForGlyph(glyphName, decomposeComponents=decomposeComponents, **discreteLocation)
         new = []
         for a, b, c in items:
@@ -505,8 +500,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if glyphName in sourceDescriptor.mutedGlyphNames:
                 continue
             thisIsDefault = self.default == sourceDescriptor
-            ignoreMaster, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
-            if ignoreMaster:
+            ignoreSource, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
+            if ignoreSource:
                 continue
             f = self.fonts.get(sourceDescriptor.name)
             if f is None: continue
@@ -589,7 +584,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     checkedItems.append(items[i])
         return checkedItems
 
-    #collectMastersForGlyph = collectSourcesForGlyph
+    collectMastersForGlyph = collectSourcesForGlyph
 
     def getNeutralFont(self):
         # Return a font object for the neutral font
@@ -637,12 +632,14 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return loc
     
     def updateFonts(self, fontObjects):
+        # this is to update the loaded fonts. 
+        # it should be the way for an editor to provide a list of fonts that are open
         #self.fonts[sourceDescriptor.name] = None
         hasUpdated = False
         for newFont in fontObjects:
             for fontName, haveFont in self.fonts.items():
                 if haveFont.path == newFont.path and id(haveFont)!=id(newFont):
-                    print(f"updating {self.fonts[fontName]} with {newFont}")
+                    #print(f"updating {self.fonts[fontName]} with {newFont}")
                     self.fonts[fontName] = newFont
                     hasUpdated = True
         if hasUpdated:
@@ -656,12 +653,12 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for i, sourceDescriptor in enumerate(self.sources):
             if sourceDescriptor.name is None:
                 # make sure it has a unique name
-                sourceDescriptor.name = "master.%d" % i
+                sourceDescriptor.name = "source.%d" % i
             if sourceDescriptor.name not in self.fonts:
                 #
                 if os.path.exists(sourceDescriptor.path):
                     self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
-                    self.problems.append("loaded master from %s, layer %s, format %d" % (sourceDescriptor.path, sourceDescriptor.layerName, getUFOVersion(sourceDescriptor.path)))
+                    self.problems.append("loaded source from %s, layer %s, format %d" % (sourceDescriptor.path, sourceDescriptor.layerName, getUFOVersion(sourceDescriptor.path)))
                     names |= set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
@@ -764,6 +761,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         else:
             selectedGlyphNames = self.glyphNames
         # add the glyphnames to the font.lib['public.glyphOrder']
+        # TODO load ignored glyphs from designspace?
         if not 'public.glyphOrder' in font.lib.keys():
             # should be the glyphorder from the default, yes?
             font.lib['public.glyphOrder'] = selectedGlyphNames
@@ -829,12 +827,14 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         
         return font
 
+    @memoize
     def isAnisotropic(self, location):
         for v in location.values():
             if isinstance(v, (list, tuple)):
                 return True
         return False
 
+    @memoize
     def splitAnisotropic(self, location):
         x = Location()
         y = Location()
@@ -975,8 +975,12 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     # caching
     def changed(self):
-        # clears everything
-        _memoizeCache.clear()
+        # clears everything relating to this designspacedocument
+        # the cache could contain more designspacedocument objects.
+        for key in list(_memoizeCache.keys()):
+            if key[1] == self:
+                del _memoizeCache[key]
+        #_memoizeCache.clear()
 
     def glyphChanged(self, glyphName):
         # clears this one specific glyph
@@ -994,11 +998,21 @@ if __name__ == "__main__":
     import shutil
     import ufoProcessor
 
-    ds5Path = "../../Tests/202206 discrete spaces/test.ds5.designspace"
-    instancesPath = "../../Tests/202206 discrete spaces/instances"
-    instancesPathMutMath = "../../Tests/202206 discrete spaces/instances_mutMath"
-    instancesPathVarLib = "../../Tests/202206 discrete spaces/instances_varlib"
+    ds5Path = "../../Tests/ds5/test.ds5.designspace"
+    instancesPath = "../../Tests/ds5/instances"
+    instancesPathMutMath = "../../Tests/ds5/instances_mutMath"
+    instancesPathVarLib = "../../Tests/ds5/instances_varlib"
 
+    def memoizeStats():
+        from pprint import pprint
+        print("_memoizeCache:")
+        items = {}
+        for key, value in _memoizeCache.items():
+            if key[0] not in items:
+                items[key[0]] = 0
+            items[key[0]] +=1
+        pprint(items)
+            
     for useVarlibPref, renameInstancesPath in [(True, instancesPathVarLib), (False, instancesPathMutMath)]:
         print(f"\n\n\t\t{useVarlibPref}")
         dsp = DesignSpaceProcessor(useVarlib=useVarlibPref)
@@ -1011,7 +1025,11 @@ if __name__ == "__main__":
         if os.path.exists(renameInstancesPath):
             shutil.rmtree(renameInstancesPath)
         shutil.move(instancesPath, renameInstancesPath)
+        if useVarlibPref:
+            # clear only the cached items that belong to the varlib test
+            # just to see if we can
+            dsp.changed()
+    memoizeStats()
             
 print(f"{len(_memoizeCache)} items in _memoizeCache")
 print('done')
-

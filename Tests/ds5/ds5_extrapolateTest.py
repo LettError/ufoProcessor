@@ -1,3 +1,5 @@
+# test the extrapolation in VariationModel
+
 from fontTools.varLib.models import VariationModel
 
 locations = [
