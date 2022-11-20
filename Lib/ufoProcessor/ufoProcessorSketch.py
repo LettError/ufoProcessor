@@ -35,11 +35,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     @memoize
     def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, **discreteLocation):
         discreteLocation = self.buildDiscreteLocation(discreteLocation)
-        sources = self.findSourcesForDiscreteLocation(**discreteLocation)
+        sources = self.findSourceDescriptorsForDiscreteLocation(**discreteLocation)
         return []
         
     @memoize
-    def findSourcesForDiscreteLocation(self, **discreteLocation):
+    def findSourceDescriptorsForDiscreteLocation(self, **discreteLocation):
         discreteLocation = self.buildDiscreteLocation(discreteLocation)
         sources = []
         for source in self.sources:      
@@ -90,5 +90,5 @@ print(r)
 
 print(d.getDiscreteDefaultLocation())
 
-print(d.findSourcesForDiscreteLocation(countedItems=1))
+print(d.findSourceDescriptorsForDiscreteLocation(countedItems=1))
 print(d.getDiscreteLocations())

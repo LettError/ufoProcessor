@@ -359,7 +359,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         """ Returns a info mutator """
         infoItems = []
         if discreteLocation is not None:
-            sources = self.findSourcesForDiscreteLocation(discreteLocation)
+            sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
         else:
             sources = self.sources
         for sourceDescriptor in sources:
@@ -385,7 +385,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             If pairs are given then query the sources for a value and make a mutator only with those values.
         """
         if discreteLocation is not None:
-            sources = self.findSourcesForDiscreteLocation(discreteLocation)
+            sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
         else:
             sources = self.sources
         kerningItems = []
@@ -475,19 +475,19 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     @memoize
     def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
-        """ Return a glyph mutator.defaultLoc
+        """ Return a glyph mutator
             decomposeComponents = True causes the source glyphs to be decomposed first
             before building the mutator. That gives you instances that do not depend
             on a complete font. If you're calculating previews for instance.
 
-            XXX check glyphs in layers
+            findSourceDescriptorsForDiscreteLocation returns sources from layers as well
         """
         items = []
         empties = []
         foundEmpty = False
         # 
         if discreteLocation is not None:
-            sources = self.findSourcesForDiscreteLocation(discreteLocation)
+            sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
         else:
             sources = self.sources
         for sourceDescriptor in sources:
@@ -599,7 +599,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     return self.fonts[sd.name]
         return None
 
-    def findDefault(self):
+    def findDefault(self, discreteLocation=None):
         """Set and return SourceDescriptor at the default location or None.
         The default location is the set of all `default` values in user space of all axes.
         """
@@ -607,9 +607,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
         # Convert the default location from user space to design space before comparing
         # it against the SourceDescriptor locations (always in design space).
-        default_location_design = self.newDefaultLocation(bend=True)
+        default_location_design = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
+        print(f"findDefault for {discreteLocation}: {default_location_design}")
         for sourceDescriptor in self.sources:
             if sourceDescriptor.location == default_location_design:
+                print(f"findDefault found {sourceDescriptor.location} {default_location_design} {sourceDescriptor.location == default_location_design}")
                 self.default = sourceDescriptor
                 return sourceDescriptor
 
@@ -617,18 +619,25 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def newDefaultLocation(self, bend=False, discreteLocation=None):
         # overwrite from fontTools.newDefaultLocation
-        # we do not want this default location to be mapped.
+        # we do not want this default location always to be mapped.
         loc = collections.OrderedDict()
         for axisDescriptor in self.axes:
+            axisName = axisDescriptor.name
+            axisValue = axisDescriptor.default
             if discreteLocation is not None:
+                # if we want to find the default for a specific discreteLoation
+                # we can not use the discrete axis' default value
+                # -> we have to use the value in the given discreteLocation
                 if axisDescriptor.name in discreteLocation:
-                    continue
+                    axisValue = discreteLocation[axisDescriptor.name]
+            else:
+                axisValue = axisDescriptor.default
             if bend:
-                loc[axisDescriptor.name] = axisDescriptor.map_forward(
-                    axisDescriptor.default
+                loc[axisName] = axisDescriptor.map_forward(
+                    axisValue
                 )
             else:
-                loc[axisDescriptor.name] = axisDescriptor.default
+                loc[axisName] = axisValue
         return loc
     
     def updateFonts(self, fontObjects):
@@ -956,8 +965,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return discreteCoordinates
 
     @memoize
-    def findSourcesForDiscreteLocation(self, discreteLocDict):
+    def findSourceDescriptorsForDiscreteLocation(self, discreteLocDict):
         # return a list of all sourcedescriptors that share the values in the discrete loc tuple
+        # so this includes all sourcedescriptors that point to layers
         # discreteLocDict {'countedItems': 1.0, 'outlined': 0.0}, {'countedItems': 1.0, 'outlined': 1.0}
         sources = []
         for s in self.sources:
