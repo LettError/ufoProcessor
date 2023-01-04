@@ -158,6 +158,8 @@ class NewUFOProcessor(object):
     def loadFonts(self, reload=False):
         # Load the fonts and find the default candidate based on the info flag
         if self._fontsLoaded and not reload:
+            if self.debug:
+                self.logger("\t\t-- loadFonts requested, but fonts are loaded already and no reload requested")
             return
         names = set()
         actions = []
@@ -170,9 +172,9 @@ class NewUFOProcessor(object):
             if sourceDescriptor.name not in self.fonts:
                 #
                 if os.path.exists(sourceDescriptor.path):
-                    self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
-                    thisLayerName = getDefaultLayerName(self.fonts[sourceDescriptor.name])
-                    actions.append(f"loaded: {os.path.basename(sourceDescriptor.path)}, layer: {thisLayerName}, format: {getUFOVersion(sourceDescriptor.path)}")
+                    f = self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
+                    thisLayerName = getDefaultLayerName(f)
+                    actions.append(f"loaded: {os.path.basename(sourceDescriptor.path)}, layer: {thisLayerName}, format: {getUFOVersion(sourceDescriptor.path)}, id: {id(f)}")
                     names |= set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
@@ -181,8 +183,51 @@ class NewUFOProcessor(object):
         if self.debug:
             for item in actions:
                 self.logger.infoItem(item)
-
         self._fontsLoaded = True
+
+    def _logLoadedFonts(self):
+        # dump info about the loaded fonts to the log
+        items = []
+        self.logger.info("\t# font status:")
+        for name, fontObj in self.fonts.items():
+            self.logger.info(f"\t\tloaded: , id: {id(fontObj)}, {os.path.basename(fontObj.path)}, format: {getUFOVersion(fontObj.path)}")
+
+    # updating fonts
+    def updateFonts(self, fontObjects):
+        # this is to update the loaded fonts. 
+        # it should be the way for an editor to provide a list of fonts that are open
+        #self.fonts[sourceDescriptor.name] = None
+        hasUpdated = False
+        for newFont in fontObjects:
+            for fontName, haveFont in self.fonts.items():
+                if haveFont.path == newFont.path and id(haveFont)!=id(newFont):
+                    note = f"## updating source {self.fonts[fontName]} with {newFont}"
+                    if self.debug:
+                        self.logger.time()
+                        self.logger.info(note)
+                    self.fonts[fontName] = newFont
+                    hasUpdated = True
+        if hasUpdated:
+            self.changed()
+
+    # caching
+    def changed(self):
+        # clears everything relating to this designspacedocument
+        # the cache could contain more designspacedocument objects.
+        for key in list(_memoizeCache.keys()):
+            if key[1] == self:
+                del _memoizeCache[key]
+        #_memoizeCache.clear()
+
+    def glyphChanged(self, glyphName):
+        # clears this one specific glyph
+        for key in list(_memoizeCache.keys()):            
+            #print(f"glyphChanged {[(i,m) for i, m in enumerate(key)]} {glyphName}")
+            # the glyphname is hiding quite deep in key[2]
+            # (('glyphTwo',),)
+            # this is because of how immutify does it. Could be different I suppose but this works
+            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[2][0][0] == glyphName:
+                del _memoizeCache[key]
    
     def splitLocation(self, location):
         # split a location in a continouous and a discrete part
@@ -360,6 +405,7 @@ class NewUFOProcessor(object):
         return [a.name for a in self.doc.axes]
     
     def generateUFOs(self):
+        glyphCount = 0
         self.loadFonts()
         if self.debug:
             self.logger.info("## generateUFO")
@@ -385,6 +431,9 @@ class NewUFOProcessor(object):
                 if not os.path.exists(instanceFolder):
                     os.makedirs(instanceFolder)
                 font.save(instanceDescriptor.path)
+                glyphCount += len(font)
+        if self.debug:
+            self.logger.info(f"\t\tGenerated {glyphCount} glyphs altogether.")
 
     generateUFO = generateUFOs
 
@@ -843,39 +892,34 @@ class NewUFOProcessor(object):
                 value = getattr(sourceInfo, infoAttribute)
                 setattr(targetInfo, infoAttribute, value)
 
-    # updating fonts
-    def updateFonts(self, fontObjects):
-        # this is to update the loaded fonts. 
-        # it should be the way for an editor to provide a list of fonts that are open
-        #self.fonts[sourceDescriptor.name] = None
-        hasUpdated = False
-        for newFont in fontObjects:
-            for fontName, haveFont in self.fonts.items():
-                if haveFont.path == newFont.path and id(haveFont)!=id(newFont):
-                    note = f"## updating source {self.fonts[fontName]} with {newFont.path}"
-                    if self.debug:
-                        self.logger.time()
-                        self.logger.info(note)
-                    self.fonts[fontName] = newFont
-                    hasUpdated = True
-        if hasUpdated:
-            self.changed()
 
 
 if __name__ == "__main__":
-
+    import time, random
+    from fontParts.world import RFont
     ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wdth.designspace"
     #ds5Path = "../../Tests/ds5/ds5.designspace"
 
     dumpCacheLog = False
+    makeUFOs = True
     import os
     if os.path.exists(ds5Path):
+        startTime = time.time()
         doc = NewUFOProcessor(ds5Path, useVarlib=False, debug=True)
-        doc.generateUFOs()
-        print("sources for space.tight ", doc.collectSourcesForGlyph("space.tight"))
+        if makeUFOs:
+            doc.generateUFOs()
 
         if dumpCacheLog:
             doc.logger.info(f"Test: cached {len(_memoizeCache)} items")
             for key, item in _memoizeCache.items():
                 doc.logger.info(f"\t\t{key} {item}")
+        endTime = time.time()
+        duration = endTime - startTime
+        print(f"duration: {duration}" )
 
+        sourcePaths = [s.path for s in doc.doc.sources]
+        f = RFont(random.choice(sourcePaths))
+        print(f)
+
+        doc.updateFonts([f])
+        doc._logLoadedFonts()
