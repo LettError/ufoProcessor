@@ -24,7 +24,7 @@ class EmptyPen(AbstractPointPen):
 
     def addComponent(self, baseGlyphName=None, transformation=None, identifier=None, **kwargs):
         self.components+=1
-    
+
     def getCount(self):
         return self.points, self.contours, self.components
     
@@ -71,6 +71,10 @@ def checkGlyphIsEmpty(glyph, allowWhiteSpace=True):
         if glyph.unicode in whiteSpace and allowWhiteSpace:
             # are we allowed to be?
             return False
+        if "space" in glyph.name:
+            # this is a bold assumption,
+            # and certainly not inclusive
+            return False            
         return True
     return False
     

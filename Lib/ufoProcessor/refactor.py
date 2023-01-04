@@ -171,7 +171,8 @@ class NewUFOProcessor(object):
                 #
                 if os.path.exists(sourceDescriptor.path):
                     self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
-                    actions.append("loaded source from %s, layer %s, format %d" % (sourceDescriptor.path, sourceDescriptor.layerName, getUFOVersion(sourceDescriptor.path)))
+                    thisLayerName = getDefaultLayerName(self.fonts[sourceDescriptor.name])
+                    actions.append(f"loaded: {os.path.basename(sourceDescriptor.path)}, layer: {thisLayerName}, format: {getUFOVersion(sourceDescriptor.path)}")
                     names |= set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
@@ -358,14 +359,14 @@ class NewUFOProcessor(object):
     def _getAxisOrder(self):
         return [a.name for a in self.doc.axes]
     
-    def generateUFO(self):
+    def generateUFOs(self):
         self.loadFonts()
         if self.debug:
             self.logger.info("## generateUFO")
         for loc, space in splitInterpolable(self.doc):
             spaceDoc = self.__class__(pathOrObject=space)
             if self.debug:
-                self.logger.infoItem(f"Generating UFO for continuous space {loc}")
+                self.logger.infoItem(f"Generating UFOs for continuous space at discrete location {loc}")
             v = 0
             for instanceDescriptor in self.doc.instances:
                 if instanceDescriptor.path is None:
@@ -379,11 +380,13 @@ class NewUFOProcessor(object):
                         bend=bend,
                         )
                 if self.debug:
-                    self.logger.info(f"\t\t{instanceDescriptor.path}")
+                    self.logger.info(f"\t\t{os.path.basename(instanceDescriptor.path)}")
                 instanceFolder = os.path.dirname(instanceDescriptor.path)
                 if not os.path.exists(instanceFolder):
                     os.makedirs(instanceFolder)
                 font.save(instanceDescriptor.path)
+
+    generateUFO = generateUFOs
 
     @memoize
     def getInfoMutator(self, discreteLocation=None):
@@ -549,6 +552,7 @@ class NewUFOProcessor(object):
                     self.problems.append(p)
                 continue
             if glyphName in sourceDescriptor.mutedGlyphNames:
+                self.logger.info(f"\t\tglyphName {glyphName} is muted")
                 continue
             thisIsDefault = self.isLocalDefault(sourceDescriptor.location)
             ignoreSource, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
@@ -659,7 +663,7 @@ class NewUFOProcessor(object):
             anisotropic = True
             locHorizontal, locVertical = self.splitAnisotropic(loc)
             if self.debug:
-                self.logger.info(f"Anisotropic location for {instanceDescriptor.name} at {instanceDescriptor.location}")
+                self.logger.info(f"\t\t\tAnisotropic location for {instanceDescriptor.name}\n\t\t\t{instanceDescriptor.location}")
         if instanceDescriptor.kerning:
             if pairs:
                 try:
@@ -676,6 +680,8 @@ class NewUFOProcessor(object):
                 if kerningMutator is not None:
                     kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                     kerningObject.extractKerning(font)
+                    if self.debug:
+                        self.logger.info(f"\t\t\t{len(font.kerning)} kerning pairs added")
 
         
         # # make the info
@@ -781,6 +787,9 @@ class NewUFOProcessor(object):
                 glyphInstanceObject.drawPoints(pPen)
             font[glyphName].width = glyphInstanceObject.width
 
+        if self.debug:
+            self.logger.info(f"\t\t\t{len(selectedGlyphNames)} glyphs added")
+
         return font
     
     def _copyFontInfo(self, sourceInfo, targetInfo):
@@ -834,30 +843,39 @@ class NewUFOProcessor(object):
                 value = getattr(sourceInfo, infoAttribute)
                 setattr(targetInfo, infoAttribute, value)
 
-t = """include(display.fea);
+    # updating fonts
+    def updateFonts(self, fontObjects):
+        # this is to update the loaded fonts. 
+        # it should be the way for an editor to provide a list of fonts that are open
+        #self.fonts[sourceDescriptor.name] = None
+        hasUpdated = False
+        for newFont in fontObjects:
+            for fontName, haveFont in self.fonts.items():
+                if haveFont.path == newFont.path and id(haveFont)!=id(newFont):
+                    note = f"## updating source {self.fonts[fontName]} with {newFont.path}"
+                    if self.debug:
+                        self.logger.time()
+                        self.logger.info(note)
+                    self.fonts[fontName] = newFont
+                    hasUpdated = True
+        if hasUpdated:
+            self.changed()
 
-#include(stat_upright.fea);
-#include(stat_italic.fea);
 
+if __name__ == "__main__":
 
-include(features-LTRPrincipia-LargeItalic/markclasses.fea);
+    ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wdth.designspace"
+    #ds5Path = "../../Tests/ds5/ds5.designspace"
 
-include(features-LTRPrincipia-LargeItalic/mark.fea);
+    dumpCacheLog = False
+    import os
+    if os.path.exists(ds5Path):
+        doc = NewUFOProcessor(ds5Path, useVarlib=False, debug=True)
+        doc.generateUFOs()
+        print("sources for space.tight ", doc.collectSourcesForGlyph("space.tight"))
 
-include(features-LTRPrincipia-LargeItalic/mkmk.fea);
+        if dumpCacheLog:
+            doc.logger.info(f"Test: cached {len(_memoizeCache)} items")
+            for key, item in _memoizeCache.items():
+                doc.logger.info(f"\t\t{key} {item}")
 
-#include(features-LTRPrincipia-LargeItalic/triplets.fea);
-
-"""
-
-
-
-#ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wdth.designspace"
-ds5Path = "../../Tests/ds5/ds5.designspace"
-
-import os
-print(os.path.exists(ds5Path))
-
-doc = NewUFOProcessor(ds5Path, useVarlib=False, debug=True)
-doc.generateUFO()
-doc.collectSourcesForGlyph("space.tight")
