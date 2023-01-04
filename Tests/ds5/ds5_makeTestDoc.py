@@ -5,6 +5,7 @@
 # axis DSC2 is a discrete axis showing a solid or outlined shape
 
 from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules, DiscreteAxisDescriptor
+from fontTools.designspaceLib.split import splitInterpolable
 
 import os
 import fontTools
@@ -117,9 +118,34 @@ for c in interestingWeightValues:
 			s1.info = True
 			doc.addInstance(s1)
 
+# add variable font descriptors
+
+splits = splitInterpolable(doc)
+for discreteLocation, subSpace in splitInterpolable(doc):
+    print(discreteLocation, subSpace)
+
+#print(doc.getVariableFonts())
+
+#for item in doc.getVariableFonts():
+#    doc.addVariableFont(item)
+
+doc.variableFonts.clear()
+print(doc.variableFonts)
+
+
+variableFonts = doc.getVariableFonts()
+print("variableFonts", variableFonts)
+
+doc.addVariableFont(variableFonts[0])
+
+for i, item in enumerate(variableFonts):
+    print(i, item)
+
+
 path = "ds5.designspace"
 print(doc.lib)
 doc.write(path)
+print(dir(doc))
 
 
 for a in doc.axes:

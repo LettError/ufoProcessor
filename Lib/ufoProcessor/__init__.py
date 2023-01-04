@@ -247,7 +247,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             return True
         return False
 
-    def generateUFO(self, processRules=True, glyphNames=None, pairs=None, bend=False):
+    def generateUFO(self, processRules=True, glyphNames=None, pairs=None, bend=False, discreteLocation=None):
         # makes the instances
         # option to execute the rules
         # make sure we're not trying to overwrite a newer UFO format
@@ -264,7 +264,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     processRules,
                     glyphNames=glyphNames,
                     pairs=pairs,
-                    bend=bend)
+                    bend=bend,
+                    discreteLocation=discreteLocation
+                    )
             folder = os.path.dirname(os.path.abspath(instanceDescriptor.path))
             path = instanceDescriptor.path
             if not os.path.exists(folder):
@@ -693,6 +695,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         if doRules is not None:
             warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
         continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
+        print('makeInstance', continuousLocation, discreteLocation)
         font = self._instantiateFont(None)
         # make fonty things here
         loc = Location(continuousLocation)
@@ -781,9 +784,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 if glyphMutator is None:
                     self.problems.append("Could not make mutator for glyph %s" % (glyphName))
                     continue
-            #except:
-            #    self.problems.append("Could not make mutator for glyph %s %s" % (glyphName, traceback.format_exc()))
-            #    continue
+
             glyphData = {}
             font.newGlyph(glyphName)
             font[glyphName].clear()
@@ -972,6 +973,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         sources = []
         for s in self.sources:
             ok = True
+            if discreteLocDict is None:
+                sources.append(s)
+                continue
             for name, value in discreteLocDict.items():
                 if name in s.location:
                     if s.location[name] != value:
@@ -1001,7 +1005,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             # this is because of how immutify does it. Could be different I suppose but this works
             if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[2][0][0] == glyphName:
                 del _memoizeCache[key]
-        
+
 
 if __name__ == "__main__":
     # while we're testing

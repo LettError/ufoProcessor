@@ -103,6 +103,15 @@
       </location>
     </source>
   </sources>
+  <variable-fonts>
+    <variable-font name="VF-DSC11-DSC20">
+      <axis-subsets>
+        <axis-subset name="width"/>
+        <axis-subset name="countedItems" uservalue="1"/>
+        <axis-subset name="outlined" uservalue="0"/>
+      </axis-subsets>
+    </variable-font>
+  </variable-fonts>
   <instances>
     <instance name="geometryInstance One Wide Solid" familyname="InstanceFamilyName" stylename="OneWideSolid" filename="instances/geometryInstance_c_(400, 700)_d1_1_d2_0.ufo">
       <location>
