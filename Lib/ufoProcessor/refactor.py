@@ -8,21 +8,26 @@ from warnings import warn
 import collections
 import logging, traceback
 
-from ufoProcessor import DesignSpaceProcessor
+#from ufoProcessor import DesignSpaceProcessor
+
 from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
 from fontTools.designspaceLib.split import splitInterpolable
 from fontTools.ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
-
 from fontTools.misc import plistlib
+
 from fontMath.mathGlyph import MathGlyph
 from fontMath.mathInfo import MathInfo
 from fontMath.mathKerning import MathKerning
 from mutatorMath.objects.mutator import buildMutator
 from mutatorMath.objects.location import Location
 
+import fontParts.fontshell.font
+
 import ufoProcessor.varModels
+import ufoProcessor.pens
+
 from ufoProcessor.varModels import VariationModelMutator
-from ufoProcessor.emptyPen import checkGlyphIsEmpty
+from ufoProcessor.pens import checkGlyphIsEmpty, DecomposePointPen
 
 from ufoProcessor.logger import Logger
 
@@ -44,7 +49,6 @@ def immutify(obj):
         hashValues.append(obj)
     return tuple(hashValues)
 
-
 def memoize(function):
     @functools.wraps(function)
     def wrapper(self, *args, **kwargs):        
@@ -59,6 +63,15 @@ def memoize(function):
             return result
     return wrapper
 
+def inspectMemoizeCache():
+    functionNames = []
+    stats = {}
+    for k in _memoizeCache.keys():
+        functionName = k[0]
+        if not functionName in stats:
+            stats[functionName] = 0
+        stats[functionName] += 1
+    print(stats)
 
 def getUFOVersion(ufoPath):
     # Peek into a ufo to read its format version.
@@ -109,7 +122,6 @@ class NewUFOProcessor(object):
         self.ufoVersion = ufoVersion
         self.useVarlib = useVarlib
         self._fontsLoaded = False
-        self.problems = []
         self.fonts = {}
         self.roundGeometry = False
         self.mutedAxisNames = None    # list of axisname that need to be muted
@@ -159,7 +171,7 @@ class NewUFOProcessor(object):
         # Load the fonts and find the default candidate based on the info flag
         if self._fontsLoaded and not reload:
             if self.debug:
-                self.logger("\t\t-- loadFonts requested, but fonts are loaded already and no reload requested")
+                self.logger.info("\t\t-- loadFonts requested, but fonts are loaded already and no reload requested")
             return
         names = set()
         actions = []
@@ -174,7 +186,7 @@ class NewUFOProcessor(object):
                 if os.path.exists(sourceDescriptor.path):
                     f = self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
                     thisLayerName = getDefaultLayerName(f)
-                    actions.append(f"loaded: {os.path.basename(sourceDescriptor.path)}, layer: {thisLayerName}, format: {getUFOVersion(sourceDescriptor.path)}, id: {id(f)}")
+                    actions.append(f"loaded: {os.path.basename(sourceDescriptor.path)}, layer: {thisLayerName}, format: {getUFOVersion(sourceDescriptor.path)}, id: {id(f):X}")
                     names |= set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
@@ -190,7 +202,7 @@ class NewUFOProcessor(object):
         items = []
         self.logger.info("\t# font status:")
         for name, fontObj in self.fonts.items():
-            self.logger.info(f"\t\tloaded: , id: {id(fontObj)}, {os.path.basename(fontObj.path)}, format: {getUFOVersion(fontObj.path)}")
+            self.logger.info(f"\t\tloaded: , id: {id(fontObj):X}, {os.path.basename(fontObj.path)}, format: {getUFOVersion(fontObj.path)}")
 
     # updating fonts
     def updateFonts(self, fontObjects):
@@ -220,7 +232,7 @@ class NewUFOProcessor(object):
         #_memoizeCache.clear()
 
     def glyphChanged(self, glyphName):
-        # clears this one specific glyph
+        # clears this one specific glyph from the memoize cache
         for key in list(_memoizeCache.keys()):            
             #print(f"glyphChanged {[(i,m) for i, m in enumerate(key)]} {glyphName}")
             # the glyphname is hiding quite deep in key[2]
@@ -302,8 +314,35 @@ class NewUFOProcessor(object):
                 axes.append(axisObj)
         return axes
 
+    def checkDiscreteAxisValues(self, location):
+        # check if the discrete values in this location are allowed
+        for discreteAxis in self.getOrderedDiscreteAxes():
+            testValue = location.get(discreteAxis.name)
+            if not testValue in discreteAxis.values:
+                return False
+        return True
+
+    def collectBaseGlyphs(self, glyphName, location):
+        # make a list of all baseglyphs needed to build this glyph, at this location
+        # Note: different discrete values mean that the glyph component set up can be different too
+        continuous, discrete = self.splitLocation(location)
+        names = set()
+        def _getComponentNames(glyph):
+            names = set()
+            for comp in glyph.components:
+                names.add(comp.baseGlyph)
+                for n in _getComponentNames(glyph.font[comp.baseGlyph]):
+                    names.add(n)
+            return list(names)
+
+        for sourceDescriptor in self.findSourceDescriptorsForDiscreteLocation(discrete):
+            sourceFont = self.fonts[sourceDescriptor.name]
+            if not glyphName in sourceFont: continue
+            [names.add(n) for n in _getComponentNames(sourceFont[glyphName])]
+        return list(names)
+
     @memoize
-    def findSourceDescriptorsForDiscreteLocation(self, discreteLocDict):
+    def findSourceDescriptorsForDiscreteLocation(self, discreteLocDict=None):
         # return a list of all sourcedescriptors that share the values in the discrete loc tuple
         # so this includes all sourcedescriptors that point to layers
         # discreteLocDict {'countedItems': 1.0, 'outlined': 0.0}, {'countedItems': 1.0, 'outlined': 1.0}
@@ -326,35 +365,29 @@ class NewUFOProcessor(object):
 
     def getVariationModel(self, items, axes, bias=None):
         # Return either a mutatorMath or a varlib.model object for calculating.
-        #try:
-        if True:
-            if self.useVarlib:
-                # use the varlib variation model
-                try:
-                    return dict(), VariationModelMutator(items, axes=self.doc.axes, extrapolate=True)
-                    #return dict(), VariationModelMutator(items, axes=self.doc.axes)
-                except TypeError:
-                    import fontTools.varLib.models
+        if self.useVarlib:
+            # use the varlib variation model
+            try:
+                return dict(), VariationModelMutator(items, axes=self.doc.axes, extrapolate=True)
+            except TypeError:
+                if self.debug:
                     error = traceback.format_exc()
                     note = "Error while making VariationModelMutator for {loc}:\n{error}"
-                    if self.debug:
-                        self.logger.info(note)
-                    return {}, None
-                except (KeyError, AssertionError):
+                    self.logger.info(note)
+                return {}, None
+            except (KeyError, AssertionError):
+                if self.debug:
                     error = traceback.format_exc()
-                    self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
-                    self.toolLog.append(items)
-                    return {}, None
-            else:
-                # use mutatormath model
-                axesForMutator = self.getContinuousAxesForMutator()
-                # mutator will be confused by discrete axis values.
-                # the bias needs to be for the continuous axes only
-                biasForMutator, _ = self.splitLocation(bias)
-                return buildMutator(items, axes=axesForMutator, bias=biasForMutator)
-        #except:
-        #    error = traceback.format_exc()
-        #    self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
+                    note = "UFOProcessor.getVariationModel error: {error}"
+                    self.logger.info(note)
+                return {}, None
+        else:
+            # use mutatormath model
+            axesForMutator = self.getContinuousAxesForMutator()
+            # mutator will be confused by discrete axis values.
+            # the bias needs to be for the continuous axes only
+            biasForMutator, _ = self.splitLocation(bias)
+            return buildMutator(items, axes=axesForMutator, bias=biasForMutator)
         return {}, None
 
     @memoize
@@ -596,9 +629,9 @@ class NewUFOProcessor(object):
         for sourceDescriptor in sources:
             if not os.path.exists(sourceDescriptor.path):
                 #kthxbai
-                p = "\tMissing UFO at %s" % sourceDescriptor.path
-                if p not in self.problems:
-                    self.problems.append(p)
+                note = "\tMissing UFO at %s" % sourceDescriptor.path
+                if self.debug:
+                    self.logger.info(note)
                 continue
             if glyphName in sourceDescriptor.mutedGlyphNames:
                 self.logger.info(f"\t\tglyphName {glyphName} is muted")
@@ -721,7 +754,7 @@ class NewUFOProcessor(object):
                     kerningObject.extractKerning(font)
                 except:
                     error = traceback.format_exc()
-                    note = f"Could not make kerning for {loc}\n{error}"
+                    note = f"makeInstance: Could not make kerning for {loc}\n{error}"
                     if self.debug:
                         self.logger.info(note)
             else:
@@ -732,7 +765,6 @@ class NewUFOProcessor(object):
                     if self.debug:
                         self.logger.info(f"\t\t\t{len(font.kerning)} kerning pairs added")
 
-        
         # # make the info
         infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
         if infoMutator is not None:
@@ -782,9 +814,12 @@ class NewUFOProcessor(object):
             font.lib['public.glyphOrder'] = selectedGlyphNames
 
         for glyphName in selectedGlyphNames:
+            # can we take all this into a separate method for making a preview glyph object?
             glyphMutator, unicodes = self.getGlyphMutator(glyphName, discreteLocation=discreteLocation)
             if glyphMutator is None:
-                self.problems.append("Could not make mutator for glyph %s" % (glyphName))
+                if self.debug:
+                    note = f"makeInstance: Could not make mutator for glyph {glyphName}"
+                    self.logger.info(note)
                 continue
 
             font.newGlyph(glyphName)
@@ -800,22 +835,23 @@ class NewUFOProcessor(object):
                     # split anisotropic location into horizontal and vertical components
                     horizontalGlyphInstanceObject = glyphMutator.makeInstance(locHorizontal, bend=bend)
                     verticalGlyphInstanceObject = glyphMutator.makeInstance(locVertical, bend=bend)
-                    # merge them again
+                    # merge them again in a beautiful single line:
                     glyphInstanceObject = (1,0)*horizontalGlyphInstanceObject + (0,1)*verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
-                note = "Quite possibly some sort of data alignment error in %s" % glyphName
                 if self.debug:
+                    note = "makeInstance: Quite possibly some sort of data alignment error in %s" % glyphName
                     self.logger.info(note)
-                self.problems.append(note)
                 continue
             if self.roundGeometry:
                 try:
                     glyphInstanceObject = glyphInstanceObject.round()
                 except AttributeError:
-                    # what are we catching here? 
-                    print(f"no round method for {glyphInstanceObject} ?")
-                    pass
+                    # what are we catching here?
+                    # math objects without a round method? 
+                    if self.debug:
+                        note = f"makeInstance: no round method for {glyphInstanceObject} ?"
+                        self.logger.info(note)
             try:
                 # File "/Users/erik/code/ufoProcessor/Lib/ufoProcessor/__init__.py", line 649, in makeInstance
                 #   glyphInstanceObject.extractGlyph(font[glyphName], onlyGeometry=True)
@@ -838,9 +874,53 @@ class NewUFOProcessor(object):
 
         if self.debug:
             self.logger.info(f"\t\t\t{len(selectedGlyphNames)} glyphs added")
-
         return font
     
+    # cache? could cause a lot of material in memory that we don't really need. Test this!
+
+    @memoize
+    def makeOneGlyph(self, glyphName, location, bend=False, decomposeComponents=True, useVarlib=False, roundGeometry=False):
+        # make me one glyph with everything
+        # Unlike makeInstance(), this is focussed on a single glyph, for previewing,
+        # and the location will be the driving factor
+        continuousLocation, discreteLocation = self.splitLocation(location)
+        # check if the discreteLocation is within limits
+        if not self.checkDiscreteAxisValues(discreteLocation):
+            if self.debug:
+                self.logger.info(f"\t\tmakeOneGlyph reports: {location} has illegal value for discrete location")
+            return None
+        previousModel = self.useVarlib
+        self.useVarlib = useVarlib
+        glyphMutator, unicodes = self.getGlyphMutator(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
+        if not glyphMutator: return None
+        try:
+            if not self.isAnisotropic(location):
+                glyphInstanceObject = glyphMutator.makeInstance(continuousLocation, bend=bend)
+            else:
+                anisotropic = True
+                if self.debug:
+                    self.logger.info(f"\t\tmakeOneGlyph anisotropic location: {location}")
+                loc = Location(continuousLocation)
+                locHorizontal, locVertical = self.splitAnisotropic(loc)
+                # split anisotropic location into horizontal and vertical components
+                horizontalGlyphInstanceObject = glyphMutator.makeInstance(locHorizontal, bend=bend)
+                verticalGlyphInstanceObject = glyphMutator.makeInstance(locVertical, bend=bend)
+                # merge them again
+                glyphInstanceObject = (1,0)*horizontalGlyphInstanceObject + (0,1)*verticalGlyphInstanceObject
+                if self.debug:
+                    self.logger.info(f"makeOneGlyph anisotropic glyphInstanceObject {glyphInstanceObject}")
+        except IndexError:
+            # alignment problem with the data?
+            if self.debug:
+                note = "makeOneGlyph: Quite possibly some sort of data alignment error in %s" % glyphName
+                self.logger.info(note)
+                return None
+        glyphInstanceObject.unicodes = unicodes
+        if roundGeometry:
+            glyphInstanceObject.round()
+        self.useVarlib = previousModel
+        return glyphInstanceObject
+
     def _copyFontInfo(self, sourceInfo, targetInfo):
         """ Copy the non-calculating fields from the source info."""
         infoAttributes = [
@@ -897,18 +977,24 @@ class NewUFOProcessor(object):
 if __name__ == "__main__":
     import time, random
     from fontParts.world import RFont
-    ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wdth.designspace"
-    #ds5Path = "../../Tests/ds5/ds5.designspace"
+    #ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wdth.designspace"
+    ds5Path = "../../Tests/ds5/ds5.designspace"
 
-    dumpCacheLog = False
+    import ufoProcessor
+
+    dumpCacheLog = True
     makeUFOs = True
     import os
     if os.path.exists(ds5Path):
         startTime = time.time()
         doc = NewUFOProcessor(ds5Path, useVarlib=False, debug=True)
+        doc.loadFonts()
         if makeUFOs:
             doc.generateUFOs()
-
+        #doc.updateFonts([f])
+        #doc._logLoadedFonts()
+        loc = doc.newDefaultLocation()
+        res = doc.makeOneGlyph("glyphOne", location=loc)
         if dumpCacheLog:
             doc.logger.info(f"Test: cached {len(_memoizeCache)} items")
             for key, item in _memoizeCache.items():
@@ -917,9 +1003,4 @@ if __name__ == "__main__":
         duration = endTime - startTime
         print(f"duration: {duration}" )
 
-        sourcePaths = [s.path for s in doc.doc.sources]
-        f = RFont(random.choice(sourcePaths))
-        print(f)
-
-        doc.updateFonts([f])
-        doc._logLoadedFonts()
+        inspectMemoizeCache()

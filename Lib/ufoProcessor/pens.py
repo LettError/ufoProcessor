@@ -1,5 +1,31 @@
 # coding: utf-8
+
 from fontTools.pens.pointPen import AbstractPointPen
+from defcon.pens.transformPointPen import TransformPointPen
+from defcon.objects.component import _defaultTransformation
+
+"""
+    Decompose
+
+"""
+
+class DecomposePointPen(object):
+
+    def __init__(self, glyphSet, outPointPen):
+        self._glyphSet = glyphSet
+        self._outPointPen = outPointPen
+        self.beginPath = outPointPen.beginPath
+        self.endPath = outPointPen.endPath
+        self.addPoint = outPointPen.addPoint
+
+    def addComponent(self, baseGlyphName, transformation):
+        if baseGlyphName in self._glyphSet:
+            baseGlyph = self._glyphSet[baseGlyphName]
+            if transformation == _defaultTransformation:
+                baseGlyph.drawPoints(self)
+            else:
+                transformPointPen = TransformPointPen(self, transformation)
+                baseGlyph.drawPoints(transformPointPen)
 
 """
     Simple pen object to determine if a glyph contains any geometry.
