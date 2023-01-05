@@ -54,7 +54,7 @@ from mutatorMath.objects.location import Location
 # back to these when we're running as a package
 import ufoProcessor.varModels
 from ufoProcessor.varModels import VariationModelMutator
-from ufoProcessor.emptyPen import checkGlyphIsEmpty
+from ufoProcessor.pens import checkGlyphIsEmpty
 
 
 try:
