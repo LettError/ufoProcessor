@@ -22,7 +22,7 @@ from mutatorMath.objects.location import Location
 import fontParts.fontshell.font
 
 import ufoProcessor.varModels
-import ufoProcessor.pens
+import ufoProcessor.emptyPen
 from ufoProcessor.varModels import VariationModelMutator
 from ufoProcessor.pens import checkGlyphIsEmpty, DecomposePointPen
 from ufoProcessor.logger import Logger

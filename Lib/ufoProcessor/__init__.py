@@ -26,7 +26,7 @@ from fontMath.mathKerning import MathKerning
 from mutatorMath.objects.mutator import buildMutator
 from mutatorMath.objects.location import Location
 from ufoProcessor.varModels import VariationModelMutator
-from ufoProcessor.pens import checkGlyphIsEmpty, DecomposePointPen
+from ufoProcessor.emptyPen import checkGlyphIsEmpty, DecomposePointPen
 
 
 try:

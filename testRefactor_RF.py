@@ -5,6 +5,9 @@ import importlib
 importlib.reload(ufoProcessor.ufoOperator)
 print(ufoProcessor.__file__)
 ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wdth.designspace"
+ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wght_wght.designspace"
+#ds5Path = "/Users/erik/code/ufoProcessor/Tests/ds5/ds5.designspace"
+
 doc = ufoProcessor.ufoOperator.UFOOperator(ds5Path, useVarlib=False, debug=True)
 doc.loadFonts()
 #doc.generateUFOs()
@@ -23,7 +26,7 @@ randomloc = doc.randomLocation(0.03)
 print(randomloc)
 test = [
     ("foreground", randomloc, False),
-    # ("background", dict(width=75, italic=1), False),
+    ("background", dict(width=75, italic=1), False),
     # ("random_width_inter_MM", dict(width=randint(50,100), italic=1), False),
     # ("random_width_xtr_MM", dict(width=randint(10,150), italic=1), False),
     # ("random_width_xtr_narrow_VL", dict(width=randint(10,50), italic=1), True),
@@ -45,13 +48,15 @@ test = [
 g = CurrentGlyph()
 dstName = g.name
 
-for layerName, loc, useVarlib in test:
+useVarlib = False
+for layerName, loc, _ in test:
     res = doc.makeOneGlyph(dstName, location=loc, bend=True, decomposeComponents=False, useVarlib=useVarlib, roundGeometry=True)
     dst = font[dstName].getLayer(layerName)
     dst.clear()
-    res.guidelines = []     # delete guidelines in mathglyph until fontparts issue is solved
-    dst.fromMathGlyph(res)
-    dst.width = max(0, res.width)
+    if res is not None:
+        res.guidelines = []     # delete guidelines in mathglyph until fontparts issue is solved
+        dst.fromMathGlyph(res)
+        dst.width = max(0, res.width)
     
     print(len(dst.components))
     for comp in dst.components:
