@@ -8,8 +8,6 @@ from warnings import warn
 import collections
 import logging, traceback
 
-#from ufoProcessor import DesignSpaceProcessor
-
 from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
 from fontTools.designspaceLib.split import splitInterpolable
 from fontTools.ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
@@ -25,13 +23,12 @@ import fontParts.fontshell.font
 
 import ufoProcessor.varModels
 import ufoProcessor.pens
-
 from ufoProcessor.varModels import VariationModelMutator
 from ufoProcessor.pens import checkGlyphIsEmpty, DecomposePointPen
-
 from ufoProcessor.logger import Logger
 
 _memoizeCache = dict()
+_memoizeStats = dict()
 
 def immutify(obj):
     # make an immutable version of this object. 
@@ -56,6 +53,9 @@ def memoize(function):
         immutablekwargs = immutify(kwargs)
         key = (function.__name__, self, immutableargs, immutify(kwargs))
         if key in _memoizeCache:
+            if not key in _memoizeStats:
+                _memoizeStats[key] = 0
+            _memoizeStats[key] += 1
             return _memoizeCache[key]
         else:
             result = function(self, *args, **kwargs)
@@ -91,7 +91,7 @@ def getUFOVersion(ufoPath):
         return p.get('formatVersion')
 
 def getDefaultLayerName(f):
-    # get the name of the default layer from a defcon font and from a fontparts font
+    # get the name of the default layer from a defcon font (outside RF) and from a fontparts font (outside and inside RF)
     if issubclass(type(f), defcon.objects.font.Font):
         return f.layers.defaultLayer.name
     elif issubclass(type(f), fontParts.fontshell.font.RFont):
@@ -99,7 +99,7 @@ def getDefaultLayerName(f):
     return None
 
 # wrapped, not inherited
-class NewUFOProcessor(object):
+class UFOOperator(object):
     
     fontClass = defcon.Font
     layerClass = defcon.Layer
@@ -167,6 +167,7 @@ class NewUFOProcessor(object):
             # if our fontClass doesnt support all the additional classes
             return self.fontClass(path)
 
+    # loading and updating fonts
     def loadFonts(self, reload=False):
         # Load the fonts and find the default candidate based on the info flag
         if self._fontsLoaded and not reload:
@@ -182,7 +183,6 @@ class NewUFOProcessor(object):
                 # make sure it has a unique name
                 sourceDescriptor.name = "source.%d" % i
             if sourceDescriptor.name not in self.fonts:
-                #
                 if os.path.exists(sourceDescriptor.path):
                     f = self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
                     thisLayerName = getDefaultLayerName(f)
@@ -204,7 +204,6 @@ class NewUFOProcessor(object):
         for name, fontObj in self.fonts.items():
             self.logger.info(f"\t\tloaded: , id: {id(fontObj):X}, {os.path.basename(fontObj.path)}, format: {getUFOVersion(fontObj.path)}")
 
-    # updating fonts
     def updateFonts(self, fontObjects):
         # this is to update the loaded fonts. 
         # it should be the way for an editor to provide a list of fonts that are open
@@ -241,6 +240,7 @@ class NewUFOProcessor(object):
             if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[2][0][0] == glyphName:
                 del _memoizeCache[key]
    
+   # manipulate locations and axes
     def splitLocation(self, location):
         # split a location in a continouous and a discrete part
         discreteAxes = [a.name for a in self.getOrderedDiscreteAxes()]
@@ -293,9 +293,6 @@ class NewUFOProcessor(object):
 
     axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
 
-    #serializedAxes = property(getSerializedAxes, doc="a list of dicts with the axis values")
-
-    # some ds5 work
     def getOrderedDiscreteAxes(self):
         # return the list of discrete axis objects, in the right order
         axes = []
@@ -325,17 +322,17 @@ class NewUFOProcessor(object):
     def collectBaseGlyphs(self, glyphName, location):
         # make a list of all baseglyphs needed to build this glyph, at this location
         # Note: different discrete values mean that the glyph component set up can be different too
-        continuous, discrete = self.splitLocation(location)
+        continuousLocation, discreteLocation = self.splitLocation(location)
         names = set()
         def _getComponentNames(glyph):
+            # so we can do recursion
             names = set()
             for comp in glyph.components:
                 names.add(comp.baseGlyph)
                 for n in _getComponentNames(glyph.font[comp.baseGlyph]):
                     names.add(n)
             return list(names)
-
-        for sourceDescriptor in self.findSourceDescriptorsForDiscreteLocation(discrete):
+        for sourceDescriptor in self.findSourceDescriptorsForDiscreteLocation(discreteLocation):
             sourceFont = self.fonts[sourceDescriptor.name]
             if not glyphName in sourceFont: continue
             [names.add(n) for n in _getComponentNames(sourceFont[glyphName])]
@@ -416,6 +413,7 @@ class NewUFOProcessor(object):
 
     @memoize
     def isAnisotropic(self, location):
+        # check if the location has anisotropic values
         for v in location.values():
             if isinstance(v, (list, tuple)):
                 return True
@@ -423,6 +421,7 @@ class NewUFOProcessor(object):
 
     @memoize
     def splitAnisotropic(self, location):
+        # split the anisotropic location into a horizontal and vertical component
         x = Location()
         y = Location()
         for dim, val in location.items():
@@ -438,6 +437,7 @@ class NewUFOProcessor(object):
         return [a.name for a in self.doc.axes]
     
     def generateUFOs(self):
+        # generate an UFO for each of the instance locations
         glyphCount = 0
         self.loadFonts()
         if self.debug:
@@ -472,7 +472,7 @@ class NewUFOProcessor(object):
 
     @memoize
     def getInfoMutator(self, discreteLocation=None):
-        """ Returns a info mutator """
+        """ Returns a info mutator for this discrete location """
         infoItems = []
         if discreteLocation is not None:
             sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
@@ -494,6 +494,15 @@ class NewUFOProcessor(object):
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.getSerializedAxes(), bias=infoBias)
         return self._infoMutator
 
+    def collectForegroundLayerNames(self):
+        """Return list of names of the default layers of all the fonts in this system. 
+            Include None and foreground. XX Why
+        """
+        names = set([None, 'foreground'])
+        for key, font in self.fonts.items():
+            names.add(getDefaultLayerName(font))
+        return list(names)
+
     @memoize
     def getKerningMutator(self, pairs=None, discreteLocation=None):
         """ Return a kerning mutator, collect the sources, build mathGlyphs.
@@ -505,7 +514,7 @@ class NewUFOProcessor(object):
         else:
             sources = self.sources
         kerningItems = []
-        foregroundLayers = [None, 'foreground', 'public.default']
+        foregroundLayers = self.collectForegroundLayerNames()
         if pairs is None:
             for sourceDescriptor in sources:
                 if sourceDescriptor.layerName not in foregroundLayers:
@@ -551,8 +560,7 @@ class NewUFOProcessor(object):
             decomposeComponents=False,
             **discreteLocation,  
             ):
-        fromCache = False
-        # make a mutator / varlib object for glyphName, with the sources for the given discrete location
+        """make a mutator / varlib object for glyphName, with the sources for the given discrete location"""
         items, unicodes = self.collectSourcesForGlyph(glyphName, decomposeComponents=decomposeComponents, **discreteLocation)
         new = []
         for a, b, c in items:
@@ -573,7 +581,8 @@ class NewUFOProcessor(object):
                 self.logger.info(note)
         return thing, unicodes
 
-    @memoize
+    # stats indicate this does not get called very often, so caching may not be useful
+    #@memoize
     def isLocalDefault(self, location):
         # return True if location is a local default
         defaults = {}
@@ -584,7 +593,8 @@ class NewUFOProcessor(object):
                 return False
         return True
 
-    @memoize
+    # stats indicate this does not get called very often, so caching may not be useful
+    #@memoize
     def filterThisLocation(self, location, mutedAxes=None):
         # return location with axes is mutedAxes removed
         # this means checking if the location is a non-default value
@@ -694,9 +704,6 @@ class NewUFOProcessor(object):
                 processThis = processThis.toMathGlyph()
             else:
                 processThis = self.mathGlyphClass(processThis)
-            # this is where the location is linked to the glyph
-            # this loc needs to have the discrete location subtracted
-            # XX @@
             continuous, discrete = self.splitLocation(loc)
             items.append((continuous, processThis, sourceInfo))
             empties.append((thisIsDefault, foundEmpty))
@@ -977,24 +984,22 @@ class NewUFOProcessor(object):
 if __name__ == "__main__":
     import time, random
     from fontParts.world import RFont
-    #ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wdth.designspace"
     ds5Path = "../../Tests/ds5/ds5.designspace"
-
-    import ufoProcessor
-
     dumpCacheLog = True
     makeUFOs = True
     import os
     if os.path.exists(ds5Path):
         startTime = time.time()
-        doc = NewUFOProcessor(ds5Path, useVarlib=False, debug=True)
+        doc = UFOOperator(ds5Path, useVarlib=True, debug=True)
         doc.loadFonts()
+        print("collectForegroundLayerNames", doc.collectForegroundLayerNames())
         if makeUFOs:
             doc.generateUFOs()
         #doc.updateFonts([f])
         #doc._logLoadedFonts()
         loc = doc.newDefaultLocation()
         res = doc.makeOneGlyph("glyphOne", location=loc)
+        
         if dumpCacheLog:
             doc.logger.info(f"Test: cached {len(_memoizeCache)} items")
             for key, item in _memoizeCache.items():
@@ -1004,3 +1009,5 @@ if __name__ == "__main__":
         print(f"duration: {duration}" )
 
         inspectMemoizeCache()
+        for key, value in _memoizeStats.items():
+            print(key[0], value)
