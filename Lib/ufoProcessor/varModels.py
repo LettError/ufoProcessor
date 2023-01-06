@@ -57,26 +57,34 @@ class VariationModelMutator(object):
         but uses the fonttools varlib logic to calculate.
     """
 
-    def __init__(self, items, axes, model=None):
+    def __init__(self, items, axes, model=None, extrapolate=True):
         # items: list of locationdict, value tuples
         # axes: list of axis dictionaried, not axisdescriptor objects.
         # model: a model, if we want to share one
+        self.extrapolate = extrapolate
         self.axisOrder = [a.name for a in axes]
         self.axisMapper = AxisMapper(axes)
         self.axes = {}
         for a in axes:
-            mappedMinimum, mappedDefault, mappedMaximum = a.map_forward(a.minimum), a.map_forward(a.default), a.map_forward(a.maximum)
-            #self.axes[a.name] = (a.minimum, a.default, a.maximum)
+            axisMinimum, axisMaximum = self.getAxisMinMax(a)
+            mappedMinimum, mappedDefault, mappedMaximum = a.map_forward(axisMinimum), a.map_forward(a.default), a.map_forward(axisMaximum)
             self.axes[a.name] = (mappedMinimum, mappedDefault, mappedMaximum)
             
         if model is None:
             dd = [self._normalize(a) for a,b in items]
             ee = self.axisOrder
-            self.model = VariationModel(dd, axisOrder=ee)
+            self.model = VariationModel(dd, axisOrder=ee, extrapolate=self.extrapolate)
         else:
             self.model = model
         self.masters = [b for a, b in items]
         self.locations = [a for a, b in items]
+
+    def getAxisMinMax(self, axis):
+        # return tha axis.minimum and axis.maximum for continuous axes
+        # return the min(axis.values), max(axis.values) for discrete axes
+        if hasattr(axis, "values"):
+            return min(axis.values), max(axis.values)
+        return axis.minimum, axis.maximum
 
     def get(self, key):
         if key in self.model.locations:
@@ -98,18 +106,13 @@ class VariationModelMutator(object):
         items = []
         for supportIndex, s in enumerate(self.getSupports()):
             sortedOrder = self.model.reverseMapping[supportIndex]
-            #print("getReach", self.masters[sortedOrder], s)
-            #print("getReach", self.locations[sortedOrder])
             items.append((self.masters[sortedOrder], s))
         return items
 
-
     def makeInstance(self, location, bend=False):
         # check for anisotropic locations here
-        #print("\t1", location)
         if bend:
             location = self.axisMapper(location)
-        #print("\t2", location)
         nl = self._normalize(location)
         return self.model.interpolateFromMasters(nl, self.masters)
 
@@ -206,7 +209,7 @@ if __name__ == "__main__":
     assert mm.makeInstance(dict(Weight=0, Width=10)) == 13
 
 
-    l = dict(Weight=400, Width=200)
+    l = dict(Weight=400, Width=20)
     lmapped = aam(l)
     print('0 loc', l)
     print('0 loc mapped', lmapped)
