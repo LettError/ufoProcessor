@@ -1,0 +1,83 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<designspace format="4.0">
+  <axes>
+    <axis tag="wdth" name="width" minimum="400" maximum="1000" default="400">
+      <map input="400" output="400"/>
+      <map input="700" output="900"/>
+      <map input="1000" output="1000"/>
+    </axis>
+  </axes>
+  <sources>
+    <source filename="sources/geometrySource_c_400.ufo" name="geometrySource400" familyname="SourceFamilyName" stylename="Narrow">
+      <groups copy="1"/>
+      <features copy="1"/>
+      <info copy="1"/>
+      <location>
+        <dimension name="width" xvalue="400"/>
+      </location>
+    </source>
+    <source filename="sources/geometrySource_c_1000.ufo" name="geometrySource1000" familyname="SourceFamilyName" stylename="Wide">
+      <location>
+        <dimension name="width" xvalue="1000"/>
+      </location>
+    </source>
+  </sources>
+  <instances>
+    <instance name="geometryInstance" familyname="InstanceFamilyName" stylename="weight_300" filename="instances/geometryInstance_c_300.ufo">
+      <location>
+        <dimension name="width" xvalue="300"/>
+      </location>
+      <kerning/>
+      <info/>
+    </instance>
+    <instance name="geometryInstance" familyname="InstanceFamilyName" stylename="weight_(400, 1200)" filename="instances/geometryInstance_c_(400, 1200).ufo">
+      <location>
+        <dimension name="width" xvalue="400" yvalue="1200"/>
+      </location>
+      <kerning/>
+      <info/>
+    </instance>
+    <instance name="geometryInstance" familyname="InstanceFamilyName" stylename="weight_300" filename="instances/geometryInstance_c_300.ufo">
+      <location>
+        <dimension name="width" xvalue="300"/>
+      </location>
+      <kerning/>
+      <info/>
+    </instance>
+    <instance name="geometryInstance" familyname="InstanceFamilyName" stylename="Narrow" filename="instances/geometryInstance_c_400.ufo">
+      <location>
+        <dimension name="width" xvalue="400"/>
+      </location>
+      <kerning/>
+      <info/>
+    </instance>
+    <instance name="geometryInstance" familyname="InstanceFamilyName" stylename="weight_550" filename="instances/geometryInstance_c_550.ufo">
+      <location>
+        <dimension name="width" xvalue="550"/>
+      </location>
+      <kerning/>
+      <info/>
+    </instance>
+    <instance name="geometryInstance" familyname="InstanceFamilyName" stylename="weight_700" filename="instances/geometryInstance_c_700.ufo">
+      <location>
+        <dimension name="width" xvalue="700"/>
+      </location>
+      <kerning/>
+      <info/>
+    </instance>
+    <instance name="geometryInstance" familyname="InstanceFamilyName" stylename="Wide" filename="instances/geometryInstance_c_1000.ufo">
+      <location>
+        <dimension name="width" xvalue="1000"/>
+      </location>
+      <kerning/>
+      <info/>
+    </instance>
+    <instance name="geometryInstance" familyname="InstanceFamilyName" stylename="weight_1100" filename="instances/geometryInstance_c_1100.ufo">
+      <location>
+        <dimension name="width" xvalue="1100"/>
+      </location>
+      <kerning/>
+      <info/>
+    </instance>
+  </instances>
+</designspace>

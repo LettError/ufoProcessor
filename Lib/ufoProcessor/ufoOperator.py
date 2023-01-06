@@ -126,9 +126,10 @@ class UFOOperator(object):
         self.roundGeometry = False
         self.mutedAxisNames = None    # list of axisname that need to be muted
         self.debug = debug
-        self.logger = None
-    
-        if isinstance(pathOrObject, str):
+        self.logger = None    
+        if pathOrObject is None:
+            self.doc = DesignSpaceDocument()
+        elif isinstance(pathOrObject, str):
             self.doc = DesignSpaceDocument()
             self.doc.read(pathOrObject)
         else:
@@ -166,6 +167,65 @@ class UFOOperator(object):
         except TypeError:
             # if our fontClass doesnt support all the additional classes
             return self.fontClass(path)
+    
+    # UFOProcessor compatibility
+    # not sure whether to expose all the DesignSpaceDocument internals here
+    # One can just use ufoOperator.doc to get it going?
+    # Let's see how difficilt it is
+
+    def read(self, path):
+        """Wrap a DesignSpaceDocument"""
+        self.doc = DesignSpaceDocument()
+        self.doc.read(path)
+        self.changed()
+
+    def write(self, path):
+        """Write the wrapped DesignSpaceDocument"""
+        self.doc.write(path)
+
+    def addAxis(self, axisDescriptor):
+        self.doc.addAxis(axisDescriptor)
+
+    def addSource(self, sourceDescriptor):
+        self.doc.addSource(sourceDescriptor)
+
+    def addInstance(self, instanceDescriptor):
+        self.doc.addInstance(instanceDescriptor)
+
+    @property
+    def lib(self):
+        if self.doc is not None:
+            return self.doc.lib
+        return None # return dict() maybe?
+
+    @property
+    def axes(self):
+        if self.doc is not None:
+            return self.doc.axes
+        return []
+
+    @property
+    def sources(self):
+        if self.doc is not None:
+            return self.doc.sources
+        return []
+
+    @property
+    def instances(self):
+        if self.doc is not None:
+            return self.doc.instances
+        return []
+
+    @property
+    def formatVersion(self):
+        if self.doc is not None:
+            return self.doc.formatVersion
+        return []
+
+    @formatVersion.setter
+    def formatVersion(self, value):
+        if self.doc is not None:
+            self.doc.formatVersion = value
 
     # loading and updating fonts
     def loadFonts(self, reload=False):
@@ -436,8 +496,11 @@ class UFOOperator(object):
     def _getAxisOrder(self):
         return [a.name for a in self.doc.axes]
     
-    def generateUFOs(self):
+    def generateUFOs(self, useVarLib=None):
         # generate an UFO for each of the instance locations
+        previousModel = self.useVarlib
+        if useVarLib is not None:
+            self.useVarlib = useVarlib
         glyphCount = 0
         self.loadFonts()
         if self.debug:
@@ -467,6 +530,7 @@ class UFOOperator(object):
                 glyphCount += len(font)
         if self.debug:
             self.logger.info(f"\t\tGenerated {glyphCount} glyphs altogether.")
+        self.useVarlib = previousModel
 
     generateUFO = generateUFOs
 
