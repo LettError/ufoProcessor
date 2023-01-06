@@ -11,8 +11,8 @@ class Logger:
         self.nest = nest
         if not nest:
             if path is not None:
-                # if os.path.exists(path):
-                #     os.remove(path)
+                if os.path.exists(path):
+                    os.remove(path)
                 if not os.path.exists(path):
                     f = open(path, "w")
                     f.close()

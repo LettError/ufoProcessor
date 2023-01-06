@@ -2,7 +2,7 @@ import os
 import glob
 import functools
 
-
+import random
 import defcon
 from warnings import warn
 import collections
@@ -29,6 +29,9 @@ from ufoProcessor.logger import Logger
 
 _memoizeCache = dict()
 _memoizeStats = dict()
+
+def ip(a, b, f):
+    return a+f*(b-a)
 
 def immutify(obj):
     # make an immutable version of this object. 
@@ -98,7 +101,7 @@ def getDefaultLayerName(f):
         return f.defaultLayer.name
     return None
 
-# wrapped, not inherited
+# wrapped, not inherited, as Just says.
 class UFOOperator(object):
     
     fontClass = defcon.Font
@@ -946,14 +949,65 @@ class UFOOperator(object):
         if self.debug:
             self.logger.info(f"\t\t\t{len(selectedGlyphNames)} glyphs added")
         return font
-    
-    # cache? could cause a lot of material in memory that we don't really need. Test this!
+
+    def randomLocation(self, extrapolate=0):
+        """A good random location, for quick testing and entertainment
+        extrapolate is a scale of the min/max distance
+        for discrete axes: random choice from the defined values
+        for continuous axes: interpolated value between axis.minimum and axis.maximum
+        """
+        workLocation = {}
+        for aD in self.getOrderedDiscreteAxes():
+            workLocation[aD.name] = random.choice(aD.values)
+        for aD in self.getOrderedContinuousAxes():
+            if extrapolate:
+                delta = (aD.maximum - aD.minimum)
+                extraMinimum = aD.minimum - extrapolate*delta
+                extraMaximum = aD.maximum + extrapolate*delta
+            else:
+                extraMinimum = aD.minimum
+                extraMaximum = aD.maximum
+            workLocation[aD.name] = ip(extraMinimum, extraMaximum, random.random())
+        return workLocation
 
     @memoize
-    def makeOneGlyph(self, glyphName, location, bend=False, decomposeComponents=True, useVarlib=False, roundGeometry=False):
-        # make me one glyph with everything
-        # Unlike makeInstance(), this is focussed on a single glyph, for previewing,
-        # and the location will be the driving factor
+    def makeFontProportions(self, location, bend=False, roundGeometry=True):
+        """Calculate the basic font proportions for this location, to map out expectations for drawing"""
+        continuousLocation, discreteLocation = self.splitLocation(location)
+        infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
+        data = dict(unitsPerEm=1000, ascender=750, descender=-250, xHeight=500)
+        if infoMutator is None:
+            return data
+        if not self.isAnisotropic(location):
+            infoInstanceObject = infoMutator.makeInstance(loc, bend=bend)
+        else:
+            horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
+            verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
+            # merge them again
+            infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
+        if roundGeometry:
+            infoInstanceObject = infoInstanceObject.round()
+        data = dict(unitsPerEm=infoInstanceObject.unitsPerEm, ascender=infoInstanceObject.ascender, descender=infoInstanceObject.descender, xHeight=infoInstanceObject.xHeight)
+        print(dir(infoInstanceObject))
+        return data
+
+    # cache? could cause a lot of material in memory that we don't really need. Test this!
+    @memoize
+    def makeOneGlyph(self, glyphName, location, bend=False, decomposeComponents=True, useVarlib=False, roundGeometry=False, clip=False):
+        """
+        glyphName: 
+        location: location including discrete axes
+        bend: apply axis transformations
+        decomposeComponents: decompose all components so we get a proper representation of the shape
+        useVarlib: use varlib as mathmodel. Otherwise it is mutatorMath
+        roundGeometry: round all geometry to integers
+        clip: restrict axis values to the defined minimum and maximum
+
+        + Supports extrapolation for varlib and mutatormath: though the results can be different
+        + Supports anisotropic locations for varlib and mutatormath. Obviously this will not be present in any Variable font exports.
+
+        Returns: a mathglyph, results are cached
+        """
         continuousLocation, discreteLocation = self.splitLocation(location)
         # check if the discreteLocation is within limits
         if not self.checkDiscreteAxisValues(discreteLocation):
@@ -1075,3 +1129,10 @@ if __name__ == "__main__":
         inspectMemoizeCache()
         for key, value in _memoizeStats.items():
             print(key[0], value)
+
+        # make some font proportions
+        props = doc.makeFontProportions(loc)
+        print(props)
+
+        for i in range(10):
+            print(doc.randomLocation(extrapolate=0.1))

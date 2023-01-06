@@ -19,24 +19,26 @@ loc['width'] = randint(50, 100)
 print(loc)
 
 # make some tests at different layers
+randomloc = doc.randomLocation(0.03)
+print(randomloc)
 test = [
-    ("foreground", dict(width=75, italic=0), False),
-    ("background", dict(width=75, italic=1), False),
-    ("random_width_inter_MM", dict(width=randint(50,100), italic=1), False),
-    ("random_width_xtr_MM", dict(width=randint(10,150), italic=1), False),
-    ("random_width_xtr_narrow_VL", dict(width=randint(10,50), italic=1), True),
-    ("random_width_xtr_wide_VL", dict(width=randint(100,500), italic=1), True),
+    ("foreground", randomloc, False),
+    # ("background", dict(width=75, italic=1), False),
+    # ("random_width_inter_MM", dict(width=randint(50,100), italic=1), False),
+    # ("random_width_xtr_MM", dict(width=randint(10,150), italic=1), False),
+    # ("random_width_xtr_narrow_VL", dict(width=randint(10,50), italic=1), True),
+    # ("random_width_xtr_wide_VL", dict(width=randint(100,500), italic=1), True),
 
-    ("10_width_xtr_VL", dict(width=10, italic=1), True),
-    ("10_width_xtr_MM", dict(width=10, italic=1), False),
-    ("200_width_xtr_wide_VL", dict(width=200, italic=1), True),
-    ("200_width_xtr_wide_MM", dict(width=200, italic=1), False),
+    # ("10_width_xtr_VL", dict(width=10, italic=1), True),
+    # ("10_width_xtr_MM", dict(width=10, italic=1), False),
+    # ("200_width_xtr_wide_VL", dict(width=200, italic=1), True),
+    # ("200_width_xtr_wide_MM", dict(width=200, italic=1), False),
 
-    ("aniso_width_inter_MM", dict(width=(50,100), italic=0), False),
-    ("aniso_width_inter_VL", dict(width=(50,100), italic=0), True),
+    # ("aniso_width_inter_MM", dict(width=(50,100), italic=0), False),
+    # ("aniso_width_inter_VL", dict(width=(50,100), italic=0), True),
 
-    ("aniso_width_xtra_MM", dict(width=(-50,200), italic=0), False),
-    ("aniso_width_xtra_VL", dict(width=(-50,200), italic=0), True),
+    # ("aniso_width_xtra_MM", dict(width=(-50,200), italic=0), False),
+    # ("aniso_width_xtra_VL", dict(width=(-50,200), italic=0), True),
 
     ]
 
@@ -71,7 +73,7 @@ for layerName, loc, useVarlib in test:
         dst2.fromMathGlyph(res2)
         dst2.width = max(0, res2.width)
 
-    dst2.update()
+        dst2.update()
     dst.update()
 
-ufoProcessor.refactor.inspectMemoizeCache()
+ufoProcessor.ufoOperator.inspectMemoizeCache()
