@@ -1,36 +1,11 @@
 # coding: utf-8
+
 from __future__ import print_function, division, absolute_import
 
-"""
-    UFOProcessor no longer executes the rules in the designspace. Rules now have complex behaviour and need
-    to be properly compiled and executed by something that has an overview of all the features.
-    
-    2022 work on support for DS5
-    https://github.com/fonttools/fonttools/blob/main/Lib/fontTools/designspaceLib/split.py#L53
-    
-    2022 10 extrapolate in varlib only works for -1, 0, 1 systems. So we continue to rely on MutatorMath. 
-
-
-"""
-
-
-"""
-    build() is a convenience function for reading and executing a designspace file.
-        documentPath: path to the designspace file.
-        outputUFOFormatVersion: integer, 2, 3. Format for generated UFOs. Note: can be different from source UFO format.
-        useVarlib: True if you want the geometry to be generated with varLib.model instead of mutatorMath.
-"""
-
-
-
-## caching
-import functools
-
-from warnings import warn
-import os, time
+import os
 import logging, traceback
 import collections
-import itertools
+# from pprint import pprint
 
 from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
 from fontTools.misc import plistlib
@@ -40,7 +15,7 @@ from fontTools.varLib.models import VariationModel, normalizeLocation
 import defcon
 import fontParts.fontshell.font
 import defcon.objects.font
-#from defcon.objects.font import Font
+from defcon.objects.font import Font
 from defcon.pens.transformPointPen import TransformPointPen
 from defcon.objects.component import _defaultTransformation
 from fontMath.mathGlyph import MathGlyph
@@ -50,11 +25,8 @@ from fontMath.mathKerning import MathKerning
 # if you only intend to use varLib.model then importing mutatorMath is not necessary.
 from mutatorMath.objects.mutator import buildMutator
 from mutatorMath.objects.location import Location
-
-# back to these when we're running as a package
-import ufoProcessor.varModels
 from ufoProcessor.varModels import VariationModelMutator
-from ufoProcessor.pens import checkGlyphIsEmpty
+from ufoProcessor.pens import checkGlyphIsEmpty, DecomposePointPen
 
 
 try:
@@ -62,40 +34,6 @@ try:
 except ImportError:
     __version__ = "0.0.0+unknown"
 
-
-_memoizeCache = dict()
-
-def immutify(obj):
-    # make an immutable version of this object. 
-    # assert immutify(10) == (10,)
-    # assert immutify([10, 20, "a"]) == (10, 20, 'a')
-    # assert immutify(dict(foo="bar", world=["a", "b"])) == ('foo', ('bar',), 'world', ('a', 'b'))
-    hashValues = []
-    if isinstance(obj, dict):
-        for key, value in obj.items():
-            hashValues.extend([key, immutify(value)])
-    elif isinstance(obj, list):
-        for value in obj:
-            hashValues.extend(immutify(value))
-    else:
-        hashValues.append(obj)
-    return tuple(hashValues)
-
-
-def memoize(function):
-    @functools.wraps(function)
-    def wrapper(self, *args, **kwargs):        
-        immutableargs = tuple([immutify(a) for a in args])
-        immutablekwargs = immutify(kwargs)
-        key = (function.__name__, self, immutableargs, immutify(kwargs))
-        if key in _memoizeCache:
-            return _memoizeCache[key]
-        else:
-            result = function(self, *args, **kwargs)
-            _memoizeCache[key] = result
-            return result
-    return wrapper
-#####
 
 class UFOProcessorError(Exception):
     def __init__(self, msg, obj=None):
@@ -123,6 +61,30 @@ def getLayer(f, layerName):
             return f.getLayer(layerName)
     return None
 
+"""
+    Processing of rules when generating UFOs.
+    Swap the contents of two glyphs.
+        - contours
+        - components
+        - width
+        - group membership
+        - kerning
+
+    + Remap components so that glyphs that reference either of the swapped glyphs maintain appearance
+    + Keep the unicode value of the original glyph.
+
+    Notes
+    Parking the glyphs under a swapname is a bit lazy, but at least it guarantees the glyphs have the right parent.
+
+"""
+
+
+"""
+    build() is a convenience function for reading and executing a designspace file.
+        documentPath: path to the designspace file.
+        outputUFOFormatVersion: integer, 2, 3. Format for generated UFOs. Note: can be different from source UFO format.
+        useVarlib: True if you want the geometry to be generated with varLib.model instead of mutatorMath.
+"""
 
 def build(
         documentPath,
@@ -152,7 +114,7 @@ def build(
         document.roundGeometry = roundGeometry
         document.read(path)
         try:
-            r = document.generateUFO()
+            r = document.generateUFO(processRules=processRules)
             results.append(r)
         except:
             if logger:
@@ -179,24 +141,108 @@ def getUFOVersion(ufoPath):
         return p.get('formatVersion')
 
 
-class DecomposePointPen(object):
+def swapGlyphNames(font, oldName, newName, swapNameExtension = "_______________swap"):
+    # In font swap the glyphs oldName and newName.
+    # Also swap the names in components in order to preserve appearance.
+    # Also swap the names in font groups.
+    if not oldName in font or not newName in font:
+        return None
+    swapName = oldName + swapNameExtension
+    # park the old glyph
+    if not swapName in font:
+        font.newGlyph(swapName)
+    # get anchors
+    oldAnchors = font[oldName].anchors
+    newAnchors = font[newName].anchors
 
-    def __init__(self, glyphSet, outPointPen):
-        self._glyphSet = glyphSet
-        self._outPointPen = outPointPen
-        self.beginPath = outPointPen.beginPath
-        self.endPath = outPointPen.endPath
-        self.addPoint = outPointPen.addPoint
+    # swap the outlines
+    font[swapName].clear()
+    p = font[swapName].getPointPen()
+    font[oldName].drawPoints(p)
+    font[swapName].width = font[oldName].width
+    # lib?
+    font[oldName].clear()
+    p = font[oldName].getPointPen()
+    font[newName].drawPoints(p)
+    font[oldName].width = font[newName].width
+    for a in newAnchors:
+        na = defcon.Anchor()
+        na.name = a.name
+        na.x = a.x
+        na.y = a.y
+        # FontParts and Defcon add anchors in different ways
+        # this works around that.
+        try:
+            font[oldName].naked().appendAnchor(na)
+        except AttributeError:
+            font[oldName].appendAnchor(na)
 
-    def addComponent(self, baseGlyphName, transformation):
-        if baseGlyphName in self._glyphSet:
-            baseGlyph = self._glyphSet[baseGlyphName]
-            if transformation == _defaultTransformation:
-                baseGlyph.drawPoints(self)
+    font[newName].clear()
+    p = font[newName].getPointPen()
+    font[swapName].drawPoints(p)
+    font[newName].width = font[swapName].width
+    for a in oldAnchors:
+        na = defcon.Anchor()
+        na.name = a.name
+        na.x = a.x
+        na.y = a.y
+        try:
+            font[newName].naked().appendAnchor(na)
+        except AttributeError:
+            font[newName].appendAnchor(na)
+
+
+    # remap the components
+    for g in font:
+        for c in g.components:
+           if c.baseGlyph == oldName:
+               c.baseGlyph = swapName
+           continue
+    for g in font:
+        for c in g.components:
+           if c.baseGlyph == newName:
+               c.baseGlyph = oldName
+           continue
+    for g in font:
+        for c in g.components:
+           if c.baseGlyph == swapName:
+               c.baseGlyph = newName
+
+    # change the names in groups
+    # the shapes will swap, that will invalidate the kerning
+    # so the names need to swap in the kerning as well.
+    newKerning = {}
+    for first, second in font.kerning.keys():
+        value = font.kerning[(first,second)]
+        if first == oldName:
+            first = newName
+        elif first == newName:
+            first = oldName
+        if second == oldName:
+            second = newName
+        elif second == newName:
+            second = oldName
+        newKerning[(first, second)] = value
+    font.kerning.clear()
+    font.kerning.update(newKerning)
+
+    for groupName, members in font.groups.items():
+        newMembers = []
+        for name in members:
+            if name == oldName:
+                newMembers.append(newName)
+            elif name == newName:
+                newMembers.append(oldName)
             else:
-                transformPointPen = TransformPointPen(self, transformation)
-                baseGlyph.drawPoints(transformPointPen)
+                newMembers.append(name)
+        font.groups[groupName] = newMembers
 
+    remove = []
+    for g in font:
+        if g.name.find(swapNameExtension)!=-1:
+            remove.append(g.name)
+    for r in remove:
+        del font[r]
 
 
 class DesignSpaceProcessor(DesignSpaceDocument):
@@ -226,6 +272,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
 
     def __init__(self, readerClass=None, writerClass=None, fontClass=None, ufoVersion=3, useVarlib=False):
         super(DesignSpaceProcessor, self).__init__(readerClass=readerClass, writerClass=writerClass)
+
         self.ufoVersion = ufoVersion         # target UFO version
         self.useVarlib = useVarlib
         self.roundGeometry = False
@@ -241,18 +288,12 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         self.problems = []  # receptacle for problem notifications. Not big enough to break, but also not small enough to ignore.
         self.toolLog = []
 
-    def hasDiscreteAxes(self):
-        # return True if this designspace has > 0 discrete axes
-        for axis in self.getOrderedDiscreteAxes():
-            return True
-        return False
-
-    def generateUFO(self, processRules=True, glyphNames=None, pairs=None, bend=False, discreteLocation=None):
+    def generateUFO(self, processRules=True, glyphNames=None, pairs=None, bend=False):
         # makes the instances
         # option to execute the rules
         # make sure we're not trying to overwrite a newer UFO format
         self.loadFonts()
-        #self.findDefault()
+        self.findDefault()
         if self.default is None:
             # we need one to genenerate
             raise UFOProcessorError("Can't generate UFO from this designspace: no default font.", self)
@@ -264,9 +305,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     processRules,
                     glyphNames=glyphNames,
                     pairs=pairs,
-                    bend=bend,
-                    discreteLocation=discreteLocation
-                    )
+                    bend=bend)
             folder = os.path.dirname(os.path.abspath(instanceDescriptor.path))
             path = instanceDescriptor.path
             if not os.path.exists(folder):
@@ -280,37 +319,14 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             self.problems.append("Generated %s as UFO%d"%(os.path.basename(path), self.ufoVersion))
         return True
 
-    def _serializeAnyAxis(self, axis):
-        if hasattr(axis, "serialize"):
-            return axis.serialize()
-        else:
-            if hasattr(axis, "values"):
-                # discrete axis does not have serialize method, meh
-                return dict(
-                    tag=axis.tag,
-                    name=axis.name,
-                    labelNames=axis.labelNames,
-                    minimum = min(axis.values), # XX is this allowed
-                    maximum = max(axis.values), # XX is this allowed
-                    values=axis.values,
-                    default=axis.default,
-                    hidden=axis.hidden,
-                    map=axis.map,
-                    axisOrdering=axis.axisOrdering,
-                    axisLabels=axis.axisLabels,
-                )
-
     def getSerializedAxes(self):
-        serialized = []
-        for axis in self.axes:
-            serialized.append(self._serializeAnyAxis(axis))
-        return serialized
+        return [a.serialize() for a in self.axes]
 
     def getMutatorAxes(self):
         # map the axis values?
         d = collections.OrderedDict()
         for a in self.axes:
-            d[a.name] = self._serializeAnyAxis(a)
+            d[a.name] = a.serialize()
         return d
 
     def _getAxisOrder(self):
@@ -319,26 +335,14 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
 
     serializedAxes = property(getSerializedAxes, doc="a list of dicts with the axis values")
-    
-    def _setUseVarLib(self, useVarLib=True):
-        self.changed()
-        self.useVarLib = True
-    
-    useVarLib = property(_setUseVarLib, doc="set useVarLib to True use the varlib mathmodel. Set to False to use MutatorMath.")
-    
+
     def getVariationModel(self, items, axes, bias=None):
         # Return either a mutatorMath or a varlib.model object for calculating.
-        #try:
-        if True:
+        try:
             if self.useVarlib:
                 # use the varlib variation model
                 try:
-                    return dict(), VariationModelMutator(items, axes=self.axes, extrapolate=True)
-                except TypeError:
-                    import fontTools.varLib.models
-                    error = traceback.format_exc()
-                    print(error)
-                    return {}, None
+                    return dict(), VariationModelMutator(items, self.axes)
                 except (KeyError, AssertionError):
                     error = traceback.format_exc()
                     self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
@@ -347,28 +351,21 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             else:
                 # use mutatormath model
                 axesForMutator = self.getMutatorAxes()
-                # mutator will be confused by discrete axis values.
-                # the bias needs to be for the continuous axes only
-                biasForMutator, _ = self.splitLocation(bias)
-                return buildMutator(items, axes=axesForMutator, bias=biasForMutator)
-        #except:
-        #    error = traceback.format_exc()
-        #    self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
-        return {}, None
+                return buildMutator(items, axes=axesForMutator, bias=bias)
+        except:
+            error = traceback.format_exc()
+            self.toolLog.append("UFOProcessor.getVariationModel error: %s" % error)
+            return {}, None
 
-    @memoize
-    def getInfoMutator(self, discreteLocation=None):
+    def getInfoMutator(self):
         """ Returns a info mutator """
+        if self._infoMutator:
+            return self._infoMutator
         infoItems = []
-        if discreteLocation is not None:
-            sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
-        else:
-            sources = self.sources
-        for sourceDescriptor in sources:
+        for sourceDescriptor in self.sources:
             if sourceDescriptor.layerName is not None:
                 continue
-            continuous, discrete = self.splitLocation(sourceDescriptor.location)
-            loc = Location(continuous)
+            loc = Location(sourceDescriptor.location)
             sourceFont = self.fonts[sourceDescriptor.name]
             if sourceFont is None:
                 continue
@@ -376,37 +373,32 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 infoItems.append((loc, sourceFont.info.toMathInfo()))
             else:
                 infoItems.append((loc, self.mathInfoClass(sourceFont.info)))
-        infoBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
+        infoBias = self.newDefaultLocation(bend=True)
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.serializedAxes, bias=infoBias)
         return self._infoMutator
 
-    @memoize
-    def getKerningMutator(self, pairs=None, discreteLocation=None):
+    def getKerningMutator(self, pairs=None):
         """ Return a kerning mutator, collect the sources, build mathGlyphs.
             If no pairs are given: calculate the whole table.
             If pairs are given then query the sources for a value and make a mutator only with those values.
         """
-        if discreteLocation is not None:
-            sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
-        else:
-            sources = self.sources
+        if self._kerningMutator and pairs == self._kerningMutatorPairs:
+            return self._kerningMutator
         kerningItems = []
         foregroundLayers = [None, 'foreground', 'public.default']
         if pairs is None:
-            for sourceDescriptor in sources:
+            for sourceDescriptor in self.sources:
                 if sourceDescriptor.layerName not in foregroundLayers:
                     continue
                 if not sourceDescriptor.muteKerning:
-                    # filter this XX @@
-                    continuous, discrete = self.splitLocation(sourceDescriptor.location)
-                    loc = Location(continuous)
+                    loc = Location(sourceDescriptor.location)
                     sourceFont = self.fonts[sourceDescriptor.name]
                     if sourceFont is None: continue
                     # this makes assumptions about the groups of all sources being the same.
                     kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
         else:
             self._kerningMutatorPairs = pairs
-            for sourceDescriptor in sources:
+            for sourceDescriptor in self.sources:
                 # XXX check sourceDescriptor layerName, only foreground should contribute
                 if sourceDescriptor.layerName is not None:
                     continue
@@ -416,8 +408,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     sourceFont = self.fonts[sourceDescriptor.name]
                     if sourceFont is None:
                         continue
-                    continuous, discrete = self.splitLocation(sourceDescriptor.location)
-                    loc = Location(continuous)
+                    loc = Location(sourceDescriptor.location)
                     # XXX can we get the kern value from the fontparts kerning object?
                     kerningItem = self.mathKerningClass(sourceFont.kerning, sourceFont.groups)
                     if kerningItem is not None:
@@ -427,19 +418,17 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                             if v is not None:
                                 sparseKerning[pair] = v
                         kerningItems.append((loc, self.mathKerningClass(sparseKerning)))
-        kerningBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
-        bias, thing = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=kerningBias) #xx
+        kerningBias = self.newDefaultLocation(bend=True)
         bias, self._kerningMutator = self.getVariationModel(kerningItems, axes=self.serializedAxes, bias=kerningBias)
         return self._kerningMutator
 
-    @memoize
     def filterThisLocation(self, location, mutedAxes):
         # return location with axes is mutedAxes removed
         # this means checking if the location is a non-default value
         if not mutedAxes:
             return False, location
         defaults = {}
-        ignoreSource = False
+        ignoreMaster = False
         for aD in self.axes:
             defaults[aD.name] = aD.default
         new = {}
@@ -450,18 +439,18 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if mutedAxisName not in defaults:
                 continue
             if location[mutedAxisName] != defaults.get(mutedAxisName):
-                ignoreSource = True
+                ignoreMaster = True
             del new[mutedAxisName]
-        return ignoreSource, new
+        return ignoreMaster, new
 
-    @memoize
     def getGlyphMutator(self, glyphName,
             decomposeComponents=False,
-            **discreteLocation,  
-            ):
-        fromCache = False
-        # make a mutator / varlib object for glyphName, with the sources for the given discrete location
-        items = self.collectSourcesForGlyph(glyphName, decomposeComponents=decomposeComponents, **discreteLocation)
+            fromCache=None):
+        # make a mutator / varlib object for glyphName.
+        cacheKey = (glyphName, decomposeComponents)
+        if cacheKey in self._glyphMutators and fromCache:
+            return self._glyphMutators[cacheKey]
+        items = self.collectMastersForGlyph(glyphName, decomposeComponents=decomposeComponents)
         new = []
         for a, b, c in items:
             if hasattr(b, "toMathGlyph"):
@@ -471,28 +460,27 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             else:
                 new.append((a,self.mathGlyphClass(b)))
         thing = None
-        thisBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
-        bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=thisBias) #xx
+        try:
+            bias, thing = self.getVariationModel(new, axes=self.serializedAxes, bias=self.newDefaultLocation(bend=True)) #xx
+        except TypeError:
+            self.toolLog.append("getGlyphMutator %s items: %s new: %s" % (glyphName, items, new))
+            self.problems.append("\tCan't make processor for glyph %s" % (glyphName))
+        if thing is not None:
+            self._glyphMutators[cacheKey] = thing
         return thing
 
-    @memoize
-    def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
-        """ Return a glyph mutator
+    def collectMastersForGlyph(self, glyphName, decomposeComponents=False):
+        """ Return a glyph mutator.defaultLoc
             decomposeComponents = True causes the source glyphs to be decomposed first
             before building the mutator. That gives you instances that do not depend
             on a complete font. If you're calculating previews for instance.
 
-            findSourceDescriptorsForDiscreteLocation returns sources from layers as well
+            XXX check glyphs in layers
         """
         items = []
         empties = []
         foundEmpty = False
-        # 
-        if discreteLocation is not None:
-            sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
-        else:
-            sources = self.sources
-        for sourceDescriptor in sources:
+        for sourceDescriptor in self.sources:
             if not os.path.exists(sourceDescriptor.path):
                 #kthxbai
                 p = "\tMissing UFO at %s" % sourceDescriptor.path
@@ -502,8 +490,8 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if glyphName in sourceDescriptor.mutedGlyphNames:
                 continue
             thisIsDefault = self.default == sourceDescriptor
-            ignoreSource, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
-            if ignoreSource:
+            ignoreMaster, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
+            if ignoreMaster:
                 continue
             f = self.fonts.get(sourceDescriptor.name)
             if f is None: continue
@@ -556,11 +544,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 processThis = processThis.toMathGlyph()
             else:
                 processThis = self.mathGlyphClass(processThis)
-            # this is where the location is linked to the glyph
-            # this loc needs to have the discrete location subtracted
-            # XX @@
-            continuous, discrete = self.splitLocation(loc)
-            items.append((continuous, processThis, sourceInfo))
+            items.append((loc, processThis, sourceInfo))
             empties.append((thisIsDefault, foundEmpty))
         # check the empties:
         # if the default glyph is empty, then all must be empty
@@ -586,8 +570,6 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     checkedItems.append(items[i])
         return checkedItems
 
-    collectMastersForGlyph = collectSourcesForGlyph
-
     def getNeutralFont(self):
         # Return a font object for the neutral font
         # self.fonts[self.default.name] ?
@@ -601,61 +583,36 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     return self.fonts[sd.name]
         return None
 
-    def findDefault(self, discreteLocation=None):
+    def findDefault(self):
         """Set and return SourceDescriptor at the default location or None.
+
         The default location is the set of all `default` values in user space of all axes.
         """
         self.default = None
 
         # Convert the default location from user space to design space before comparing
         # it against the SourceDescriptor locations (always in design space).
-        default_location_design = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
-        print(f"findDefault for {discreteLocation}: {default_location_design}")
+        default_location_design = self.newDefaultLocation(bend=True)
         for sourceDescriptor in self.sources:
             if sourceDescriptor.location == default_location_design:
-                print(f"findDefault found {sourceDescriptor.location} {default_location_design} {sourceDescriptor.location == default_location_design}")
                 self.default = sourceDescriptor
                 return sourceDescriptor
 
         return None
 
-    def newDefaultLocation(self, bend=False, discreteLocation=None):
+    def newDefaultLocation(self, bend=False):
         # overwrite from fontTools.newDefaultLocation
-        # we do not want this default location always to be mapped.
+        # we do not want this default location to be mapped.
         loc = collections.OrderedDict()
         for axisDescriptor in self.axes:
-            axisName = axisDescriptor.name
-            axisValue = axisDescriptor.default
-            if discreteLocation is not None:
-                # if we want to find the default for a specific discreteLoation
-                # we can not use the discrete axis' default value
-                # -> we have to use the value in the given discreteLocation
-                if axisDescriptor.name in discreteLocation:
-                    axisValue = discreteLocation[axisDescriptor.name]
-            else:
-                axisValue = axisDescriptor.default
             if bend:
-                loc[axisName] = axisDescriptor.map_forward(
-                    axisValue
+                loc[axisDescriptor.name] = axisDescriptor.map_forward(
+                    axisDescriptor.default
                 )
             else:
-                loc[axisName] = axisValue
+                loc[axisDescriptor.name] = axisDescriptor.default
         return loc
-    
-    def updateFonts(self, fontObjects):
-        # this is to update the loaded fonts. 
-        # it should be the way for an editor to provide a list of fonts that are open
-        #self.fonts[sourceDescriptor.name] = None
-        hasUpdated = False
-        for newFont in fontObjects:
-            for fontName, haveFont in self.fonts.items():
-                if haveFont.path == newFont.path and id(haveFont)!=id(newFont):
-                    #print(f"updating {self.fonts[fontName]} with {newFont}")
-                    self.fonts[fontName] = newFont
-                    hasUpdated = True
-        if hasUpdated:
-            self.changed()
-        
+
     def loadFonts(self, reload=False):
         # Load the fonts and find the default candidate based on the info flag
         if self._fontsLoaded and not reload:
@@ -664,12 +621,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         for i, sourceDescriptor in enumerate(self.sources):
             if sourceDescriptor.name is None:
                 # make sure it has a unique name
-                sourceDescriptor.name = "source.%d" % i
+                sourceDescriptor.name = "master.%d" % i
             if sourceDescriptor.name not in self.fonts:
-                #
                 if os.path.exists(sourceDescriptor.path):
                     self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
-                    self.problems.append("loaded source from %s, layer %s, format %d" % (sourceDescriptor.path, sourceDescriptor.layerName, getUFOVersion(sourceDescriptor.path)))
+                    self.problems.append("loaded master from %s, layer %s, format %d" % (sourceDescriptor.path, sourceDescriptor.layerName, getUFOVersion(sourceDescriptor.path)))
                     names |= set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
@@ -687,39 +643,41 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         return fonts
 
     def makeInstance(self, instanceDescriptor,
-            doRules=None,
+            doRules=False,
             glyphNames=None,
             pairs=None,
             bend=False):
         """ Generate a font object for this instance """
-        if doRules is not None:
-            warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
-        continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
-        print('makeInstance', continuousLocation, discreteLocation)
         font = self._instantiateFont(None)
         # make fonty things here
-        loc = Location(continuousLocation)
+        loc = Location(instanceDescriptor.location)
         anisotropic = False
         locHorizontal = locVertical = loc
         if self.isAnisotropic(loc):
             anisotropic = True
             locHorizontal, locVertical = self.splitAnisotropic(loc)
+        # groups
+        renameMap = getattr(self.fonts[self.default.name], "kerningGroupConversionRenameMaps", None)
+        font.kerningGroupConversionRenameMaps = renameMap if renameMap is not None else {'side1': {}, 'side2': {}}
+        # make the kerning
+        # this kerning is always horizontal. We can take the horizontal location
+        # filter the available pairs?
         if instanceDescriptor.kerning:
             if pairs:
                 try:
-                    kerningMutator = self.getKerningMutator(pairs=pairs, discreteLocation=discreteLocation)
+                    kerningMutator = self.getKerningMutator(pairs=pairs)
                     kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                     kerningObject.extractKerning(font)
                 except:
                     self.problems.append("Could not make kerning for %s. %s" % (loc, traceback.format_exc()))
             else:
-                kerningMutator = self.getKerningMutator(discreteLocation=discreteLocation)
+                kerningMutator = self.getKerningMutator()
                 if kerningMutator is not None:
                     kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                     kerningObject.extractKerning(font)
-        # # make the info
+        # make the info
         try:
-            infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
+            infoMutator = self.getInfoMutator()
             if infoMutator is not None:
                 if not anisotropic:
                     infoInstanceObject = infoMutator.makeInstance(loc, bend=bend)
@@ -739,14 +697,14 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             font.info.postscriptFontName = instanceDescriptor.postScriptFontName # yikes, note the differences in capitalisation..
             font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
             font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
-        #     # NEED SOME HELP WITH THIS
-        #     # localised names need to go to the right openTypeNameRecords
-        #     # records = []
-        #     # nameID = 1
-        #     # platformID =
-        #     # for languageCode, name in instanceDescriptor.localisedStyleMapFamilyName.items():
-        #     #    # Name ID 1 (font family name) is found at the generic styleMapFamily attribute.
-        #     #    records.append((nameID, ))
+            # NEED SOME HELP WITH THIS
+            # localised names need to go to the right openTypeNameRecords
+            # records = []
+            # nameID = 1
+            # platformID =
+            # for languageCode, name in instanceDescriptor.localisedStyleMapFamilyName.items():
+            #    # Name ID 1 (font family name) is found at the generic styleMapFamily attribute.
+            #    records.append((nameID, ))
         except:
             self.problems.append("Could not make fontinfo for %s. %s" % (loc, traceback.format_exc()))
         for sourceDescriptor in self.sources:
@@ -761,8 +719,11 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                         font.lib[key] = value
             if sourceDescriptor.copyGroups:
                 if self.fonts[sourceDescriptor.name] is not None:
+                    sides = font.kerningGroupConversionRenameMaps.get('side1', {})
+                    sides.update(font.kerningGroupConversionRenameMaps.get('side2', {}))
                     for key, value in self.fonts[sourceDescriptor.name].groups.items():
-                        font.groups[key] = value
+                        if key not in sides:
+                            font.groups[key] = value
             if sourceDescriptor.copyFeatures:
                 if self.fonts[sourceDescriptor.name] is not None:
                     featuresText = self.fonts[sourceDescriptor.name].features.text
@@ -773,45 +734,100 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         else:
             selectedGlyphNames = self.glyphNames
         # add the glyphnames to the font.lib['public.glyphOrder']
-        # TODO load ignored glyphs from designspace?
         if not 'public.glyphOrder' in font.lib.keys():
-            # should be the glyphorder from the default, yes?
             font.lib['public.glyphOrder'] = selectedGlyphNames
         for glyphName in selectedGlyphNames:
-            #try:
-            if True:
-                glyphMutator = self.getGlyphMutator(glyphName, discreteLocation=discreteLocation)
+            try:
+                glyphMutator = self.getGlyphMutator(glyphName)
                 if glyphMutator is None:
                     self.problems.append("Could not make mutator for glyph %s" % (glyphName))
                     continue
-
-            glyphData = {}
+            except:
+                self.problems.append("Could not make mutator for glyph %s %s" % (glyphName, traceback.format_exc()))
+                continue
+            if glyphName in instanceDescriptor.glyphs.keys():
+                # XXX this should be able to go now that we have full rule support.
+                # reminder: this is what the glyphData can look like
+                # {'instanceLocation': {'custom': 0.0, 'weight': 824.0},
+                #  'masters': [{'font': 'master.Adobe VF Prototype.Master_0.0',
+                #               'glyphName': 'dollar.nostroke',
+                #               'location': {'custom': 0.0, 'weight': 0.0}},
+                #              {'font': 'master.Adobe VF Prototype.Master_1.1',
+                #               'glyphName': 'dollar.nostroke',
+                #               'location': {'custom': 0.0, 'weight': 368.0}},
+                #              {'font': 'master.Adobe VF Prototype.Master_2.2',
+                #               'glyphName': 'dollar.nostroke',
+                #               'location': {'custom': 0.0, 'weight': 1000.0}},
+                #              {'font': 'master.Adobe VF Prototype.Master_3.3',
+                #               'glyphName': 'dollar.nostroke',
+                #               'location': {'custom': 100.0, 'weight': 1000.0}},
+                #              {'font': 'master.Adobe VF Prototype.Master_0.4',
+                #               'glyphName': 'dollar.nostroke',
+                #               'location': {'custom': 100.0, 'weight': 0.0}},
+                #              {'font': 'master.Adobe VF Prototype.Master_4.5',
+                #               'glyphName': 'dollar.nostroke',
+                #               'location': {'custom': 100.0, 'weight': 368.0}}],
+                #  'unicodes': [36]}
+                glyphData = instanceDescriptor.glyphs[glyphName]
+            else:
+                glyphData = {}
             font.newGlyph(glyphName)
             font[glyphName].clear()
-            glyphInstanceUnicodes = []
-            neutralFont = self.getNeutralFont()
-            # get the unicodes from the default
-            if glyphName in neutralFont:
-                glyphInstanceUnicodes = neutralFont[glyphName].unicodes
+            if glyphData.get('mute', False):
+                # mute this glyph, skip
+                continue
+            glyphInstanceLocation = glyphData.get("instanceLocation", instanceDescriptor.location)
+            glyphInstanceLocation = Location(glyphInstanceLocation)
+            uniValues = []
+            neutral = glyphMutator.get(())
+            if neutral is not None:
+                uniValues = neutral[0].unicodes
+            else:
+                neutralFont = self.getNeutralFont()
+                if glyphName in neutralFont:
+                    uniValues = neutralFont[glyphName].unicodes
+            glyphInstanceUnicodes = glyphData.get("unicodes", uniValues)
+            note = glyphData.get("note")
+            if note:
+                font[glyphName] = note
+            # XXXX phase out support for instance-specific masters
+            # this should be handled by the rules system.
+            masters = glyphData.get("masters", None)
+            if masters is not None:
+                items = []
+                for glyphMaster in masters:
+                    sourceGlyphFont = glyphMaster.get("font")
+                    sourceGlyphName = glyphMaster.get("glyphName", glyphName)
+                    m = self.fonts.get(sourceGlyphFont)
+                    if not sourceGlyphName in m:
+                        continue
+                    if hasattr(m[sourceGlyphName], "toMathGlyph"):
+                        sourceGlyph = m[sourceGlyphName].toMathGlyph()
+                    else:
+                        sourceGlyph = MathGlyph(m[sourceGlyphName])
+                    sourceGlyphLocation = glyphMaster.get("location")
+                    items.append((Location(sourceGlyphLocation), sourceGlyph))
+                bias, glyphMutator = self.getVariationModel(items, axes=self.serializedAxes, bias=self.newDefaultLocation(bend=True))
             try:
-                if not self.isAnisotropic(continuousLocation):
-                    glyphInstanceObject = glyphMutator.makeInstance(continuousLocation, bend=bend)
+                if not self.isAnisotropic(glyphInstanceLocation):
+                    glyphInstanceObject = glyphMutator.makeInstance(glyphInstanceLocation, bend=bend)
                 else:
                     # split anisotropic location into horizontal and vertical components
-                    horizontalGlyphInstanceObject = glyphMutator.makeInstance(locHorizontal, bend=bend)
-                    verticalGlyphInstanceObject = glyphMutator.makeInstance(locVertical, bend=bend)
+                    horizontal, vertical = self.splitAnisotropic(glyphInstanceLocation)
+                    horizontalGlyphInstanceObject = glyphMutator.makeInstance(horizontal, bend=bend)
+                    verticalGlyphInstanceObject = glyphMutator.makeInstance(vertical, bend=bend)
                     # merge them again
                     glyphInstanceObject = (1,0)*horizontalGlyphInstanceObject + (0,1)*verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
                 self.problems.append("Quite possibly some sort of data alignment error in %s" % glyphName)
                 continue
+            font.newGlyph(glyphName)
+            font[glyphName].clear()
             if self.roundGeometry:
                 try:
                     glyphInstanceObject = glyphInstanceObject.round()
                 except AttributeError:
-                    # what are we catching here? 
-                    print(f"no round method for {glyphInstanceObject} ?")
                     pass
             try:
                 # File "/Users/erik/code/ufoProcessor/Lib/ufoProcessor/__init__.py", line 649, in makeInstance
@@ -833,18 +849,26 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                 glyphInstanceObject.drawPoints(pPen)
             font[glyphName].width = glyphInstanceObject.width
             font[glyphName].unicodes = glyphInstanceUnicodes
+        if doRules:
+            resultNames = processRules(self.rules, loc, self.glyphNames)
+            for oldName, newName in zip(self.glyphNames, resultNames):
+                if oldName != newName:
+                    swapGlyphNames(font, oldName, newName)
+        # copy the glyph lib?
+        #for sourceDescriptor in self.sources:
+        #    if sourceDescriptor.copyLib:
+        #        pass
+        #    pass
+        # store designspace location in the font.lib
         font.lib['designspace.location'] = list(instanceDescriptor.location.items())
-        
         return font
 
-    @memoize
     def isAnisotropic(self, location):
         for v in location.values():
-            if isinstance(v, (list, tuple)):
+            if type(v)==tuple:
                 return True
         return False
 
-    @memoize
     def splitAnisotropic(self, location):
         x = Location()
         y = Location()
@@ -925,125 +949,4 @@ class DesignSpaceProcessor(DesignSpaceDocument):
             if copy:
                 value = getattr(sourceInfo, infoAttribute)
                 setattr(targetInfo, infoAttribute, value)
-                
-    # some ds5 work
-    def getOrderedDiscreteAxes(self):
-        # return the list of discrete axis objects, in the right order
-        axes = []
-        for axisName in self.getAxisOrder():
-            axisObj = self.getAxis(axisName)
-            if hasattr(axisObj, "values"):
-                axes.append(axisObj)
-        return axes
 
-    def splitLocation(self, location):
-        # split a location in a continouous and a discrete part
-        discreteAxes = [a.name for a in self.getOrderedDiscreteAxes()]
-        continuous = {}
-        discrete = {}
-        for name, value in location.items():
-            if name in discreteAxes:
-                discrete[name] = value
-            else:
-                continuous[name] = value
-        if not discrete:
-            return continuous, None
-        return continuous, discrete
-
-    def getDiscreteLocations(self):
-        # return a list of all permutated discrete locations
-        # do we have a list of ordered axes?
-        values = []
-        names = []
-        discreteCoordinates = []
-        dd = []
-        for axis in self.getOrderedDiscreteAxes():
-            values.append(axis.values)
-            names.append(axis.name)
-        for r in itertools.product(*values):
-            # make a small dict for the discrete location values
-            discreteCoordinates.append({a:b for a,b in zip(names,r)})
-        return discreteCoordinates
-
-    @memoize
-    def findSourceDescriptorsForDiscreteLocation(self, discreteLocDict):
-        # return a list of all sourcedescriptors that share the values in the discrete loc tuple
-        # so this includes all sourcedescriptors that point to layers
-        # discreteLocDict {'countedItems': 1.0, 'outlined': 0.0}, {'countedItems': 1.0, 'outlined': 1.0}
-        sources = []
-        for s in self.sources:
-            ok = True
-            if discreteLocDict is None:
-                sources.append(s)
-                continue
-            for name, value in discreteLocDict.items():
-                if name in s.location:
-                    if s.location[name] != value:
-                        ok = False
-                else:
-                    ok = False
-                    continue
-            if ok:
-                sources.append(s)
-        return sources
-
-    # caching
-    def changed(self):
-        # clears everything relating to this designspacedocument
-        # the cache could contain more designspacedocument objects.
-        for key in list(_memoizeCache.keys()):
-            if key[1] == self:
-                del _memoizeCache[key]
-        #_memoizeCache.clear()
-
-    def glyphChanged(self, glyphName):
-        # clears this one specific glyph
-        for key in list(_memoizeCache.keys()):            
-            #print(f"glyphChanged {[(i,m) for i, m in enumerate(key)]} {glyphName}")
-            # the glyphname is hiding quite deep in key[2]
-            # (('glyphTwo',),)
-            # this is because of how immutify does it. Could be different I suppose but this works
-            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[2][0][0] == glyphName:
-                del _memoizeCache[key]
-
-
-if __name__ == "__main__":
-    # while we're testing
-    import shutil
-    import ufoProcessor
-
-    ds5Path = "../../Tests/ds5/test.ds5.designspace"
-    instancesPath = "../../Tests/ds5/instances"
-    instancesPathMutMath = "../../Tests/ds5/instances_mutMath"
-    instancesPathVarLib = "../../Tests/ds5/instances_varlib"
-
-    def memoizeStats():
-        from pprint import pprint
-        print("_memoizeCache:")
-        items = {}
-        for key, value in _memoizeCache.items():
-            if key[0] not in items:
-                items[key[0]] = 0
-            items[key[0]] +=1
-        pprint(items)
-            
-    for useVarlibPref, renameInstancesPath in [(True, instancesPathVarLib), (False, instancesPathMutMath)]:
-        print(f"\n\n\t\t{useVarlibPref}")
-        dsp = DesignSpaceProcessor(useVarlib=useVarlibPref)
-        dsp.read(ds5Path)
-        dsp.loadFonts()
-        print(dsp.glyphNames)
-        dsp.updateFonts(AllFonts())
-        dsp.generateUFO()
-        dsp.glyphChanged("glyphOne")
-        if os.path.exists(renameInstancesPath):
-            shutil.rmtree(renameInstancesPath)
-        shutil.move(instancesPath, renameInstancesPath)
-        if useVarlibPref:
-            # clear only the cached items that belong to the varlib test
-            # just to see if we can
-            dsp.changed()
-    memoizeStats()
-            
-print(f"{len(_memoizeCache)} items in _memoizeCache")
-print('done')
