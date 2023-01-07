@@ -24,7 +24,7 @@ import fontParts.fontshell.font
 import ufoProcessor.varModels
 import ufoProcessor.emptyPen
 from ufoProcessor.varModels import VariationModelMutator
-from ufoProcessor.pens import checkGlyphIsEmpty, DecomposePointPen
+from ufoProcessor.emptyPen import checkGlyphIsEmpty, DecomposePointPen
 from ufoProcessor.logger import Logger
 
 _memoizeCache = dict()
@@ -274,6 +274,11 @@ class UFOOperator(object):
         hasUpdated = False
         for newFont in fontObjects:
             for fontName, haveFont in self.fonts.items():
+                # XX what happens here when the font did not load?
+                # haveFont will be None. Scenario: font initially missing, then added. 
+                if haveFont is None:
+                    self.fonts[fontName] = newFont
+                    hasUpdated = True
                 if haveFont.path == newFont.path and id(haveFont)!=id(newFont):
                     note = f"## updating source {self.fonts[fontName]} with {newFont}"
                     if self.debug:
@@ -352,7 +357,8 @@ class UFOOperator(object):
         return d
 
     def _getAxisOrder(self):
-        return [a.name for a in self.doc.axes]
+        # XX this might be different from the axis order labels
+        return [axisDescriptor.name for axisDescriptor in self.doc.axes]
 
     axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
 
@@ -495,9 +501,6 @@ class UFOOperator(object):
                 x[dim] = y[dim] = val
         return x, y
 
-    @memoize
-    def _getAxisOrder(self):
-        return [a.name for a in self.doc.axes]
     
     def generateUFOs(self, useVarLib=None):
         # generate an UFO for each of the instance locations

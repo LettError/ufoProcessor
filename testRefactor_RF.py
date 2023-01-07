@@ -3,12 +3,12 @@ import ufoProcessor
 import ufoProcessor.ufoOperator
 import importlib
 importlib.reload(ufoProcessor.ufoOperator)
-print(ufoProcessor.__file__)
+#print(ufoProcessor.__file__)
 ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wdth.designspace"
 ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wght_wght.designspace"
 #ds5Path = "/Users/erik/code/ufoProcessor/Tests/ds5/ds5.designspace"
 
-doc = ufoProcessor.ufoOperator.UFOOperator(ds5Path, useVarlib=False, debug=True)
+doc = ufoProcessor.ufoOperator.UFOOperator(ds5Path, useVarlib=False, debug=False)
 doc.loadFonts()
 #doc.generateUFOs()
 
@@ -19,11 +19,11 @@ font = CurrentFont()
 
 loc = doc.newDefaultLocation()
 loc['width'] = randint(50, 100)
-print(loc)
+#print(loc)
 
 # make some tests at different layers
 randomloc = doc.randomLocation(0.03)
-print(randomloc)
+#print(randomloc)
 test = [
     ("foreground", randomloc, False),
     ("background", dict(width=75, italic=1), False),
@@ -58,23 +58,23 @@ for layerName, loc, _ in test:
         dst.fromMathGlyph(res)
         dst.width = max(0, res.width)
     
-    print(len(dst.components))
+    #print(len(dst.components))
     for comp in dst.components:
-        print("-- processing baseglyph", comp.baseGlyph)
+        #print("-- processing baseglyph", comp.baseGlyph)
         res2 = doc.makeOneGlyph(comp.baseGlyph, location=loc, bend=True, decomposeComponents=False, useVarlib=useVarlib, roundGeometry=True)
         # let's make sure the glyph exists in the layer
-        print('layerName:', layerName)
+        #print('layerName:', layerName)
         dstLayer = font.getLayer(layerName)
         if not comp.baseGlyph in dstLayer:
             dstLayer.newGlyph(comp.baseGlyph)
         dst2 = dstLayer[comp.baseGlyph]
         dst2.clear()
-        print('dst.anchors:', dst.anchors)
-        print('dst.guidelines:', dst.guidelines)
+        #print('dst.anchors:', dst.anchors)
+        #print('dst.guidelines:', dst.guidelines)
         for item in res2.guidelines:
             print(item)
         res2.guidelines = []     # delete guidelines in mathglyph until fontparts issue is solved
-        print('dst.guidelines:', res2.guidelines)
+        #print('dst.guidelines:', res2.guidelines)
         dst2.fromMathGlyph(res2)
         dst2.width = max(0, res2.width)
 
