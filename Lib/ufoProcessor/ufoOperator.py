@@ -11,7 +11,7 @@ import collections
 import logging, traceback
 
 from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
-from fontTools.designspaceLib.split import splitInterpolable
+#from fontTools.designspaceLib.split import splitInterpolable
 from fontTools.ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
 from fontTools.misc import plistlib
 
@@ -318,8 +318,16 @@ class UFOOperator(object):
         if hasUpdated:
             self.changed()
 
-    # caching
+    def getFonts(self):
+        # returnn a list of (font object, location) tuples
+        fonts = []
+        for sourceDescriptor in self.sources:
+            f = self.fonts.get(sourceDescriptor.name)
+            if f is not None:
+                fonts.append((f, sourceDescriptor.location))
+        return fonts
 
+    # caching
     def __del__(self):
         self.changed()
 
@@ -344,17 +352,32 @@ class UFOOperator(object):
         if includeDependencies:
             for discreteLocation in self.getDiscreteLocations():
                 reverseComponentMap = self.getReverseComponentMapping()
+                if not glyphName in reverseComponentMap: continue
                 for compName in reverseComponentMap[glyphName]:
-                    print(f"\tglyphChanged include {compName}")
                     changedNames.add(compName)
+        remove = []
         for key in list(_memoizeCache.keys()):            
             #print(f"glyphChanged {[(i,m) for i, m in enumerate(key)]} {glyphName}")
             # the glyphname is hiding quite deep in key[2]
             # (('glyphTwo',),)
             # this is because of how immutify does it. Could be different I suppose but this works
-            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[2][0][0] in changedNames:
-                del _memoizeCache[key]
-   
+            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[1] == self and key[2][0][0] in changedNames:
+                remove.append(key)
+        for key in remove:
+            del _memoizeCache[key]
+            if key in _memoizeStats:
+                del _memoizeStats[key]
+
+    def glyphsInCache(self):
+        """report which glyphs are in the cache at the moment"""
+        names = set()
+        for key in list(_memoizeCache.keys()):            
+            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[1] == self:
+                names.add(key[2][0][0])
+        names = list(names)
+        names.sort()
+        return names
+
    # manipulate locations and axes
     def splitLocation(self, location):
         # split a location in a continouous and a discrete part
@@ -412,7 +435,6 @@ class UFOOperator(object):
     def getDiscreteLocations(self):
          # return a list of all permutated discrete locations
          # do we have a list of ordered axes?
-         #print("ordered axes", self.getOrderedDiscreteAxes())
          values = []
          names = []
          discreteCoordinates = []
@@ -583,11 +605,9 @@ class UFOOperator(object):
             sources = self.doc.sources
         for sourceDescriptor in sources:
             isDefault = self.isLocalDefault(sourceDescriptor.location)
-            #print("getReverseComponentMapping", sourceDescriptor.name, sourceDescriptor.location, isDefault)
             if isDefault:
                 font = self.fonts.get(sourceDescriptor.name)
                 if font is None: return {}
-                #print("getReverseComponentMapping", font.__class__)
                 if issubclass(type(font), defcon.objects.font.Font):
                     # defcon
                     reverseComponentMapping = {}
@@ -611,29 +631,26 @@ class UFOOperator(object):
         self.loadFonts()
         if self.debug:
             self.logger.info("## generateUFO")
-        for loc, space in splitInterpolable(self.doc):
-            spaceDoc = self.__class__(pathOrObject=space)
+        for instanceDescriptor in self.doc.instances:
             if self.debug:
-                self.logger.infoItem(f"Generating UFOs for continuous space at discrete location {loc}")
-            v = 0
-            for instanceDescriptor in self.doc.instances:
-                if instanceDescriptor.path is None:
-                    continue
-                pairs = None
-                bend = False
-                font = self.makeInstance(instanceDescriptor,
-                        processRules,
-                        glyphNames=self.glyphNames,
-                        pairs=pairs,
-                        bend=bend,
-                        )
-                if self.debug:
-                    self.logger.info(f"\t\t{os.path.basename(instanceDescriptor.path)}")
-                instanceFolder = os.path.dirname(instanceDescriptor.path)
-                if not os.path.exists(instanceFolder):
-                    os.makedirs(instanceFolder)
-                font.save(instanceDescriptor.path)
-                glyphCount += len(font)
+                self.logger.infoItem(f"Generating UFO at {instanceDescriptor.location}")
+            if instanceDescriptor.path is None:
+                continue
+            pairs = None
+            bend = False
+            font = self.makeInstance(instanceDescriptor,
+                    processRules,
+                    glyphNames=self.glyphNames,
+                    pairs=pairs,
+                    bend=bend,
+                    )
+            if self.debug:
+                self.logger.info(f"\t\t{os.path.basename(instanceDescriptor.path)}")
+            instanceFolder = os.path.dirname(instanceDescriptor.path)
+            if not os.path.exists(instanceFolder):
+                os.makedirs(instanceFolder)
+            font.save(instanceDescriptor.path)
+            glyphCount += len(font)
         if self.debug:
             self.logger.info(f"\t\tGenerated {glyphCount} glyphs altogether.")
         self.useVarlib = previousModel
@@ -751,7 +768,6 @@ class UFOOperator(object):
         for axisName, value in location.items():
             if defaults[axisName] != value:
                 return False
-        #print("yes isLocalDefault", defaults, location)
         return True
 
     def filterThisLocation(self, location, mutedAxes=None):
@@ -987,13 +1003,10 @@ class UFOOperator(object):
                     note = f"makeInstance: Could not make mutator for glyph {glyphName}"
                     self.logger.info(note)
                 continue
-
             font.newGlyph(glyphName)
             font[glyphName].clear()
             glyphInstanceUnicodes = []
-            #neutralFont = self.getNeutralFont()
             font[glyphName].unicodes = unicodes
-
             try:
                 if not self.isAnisotropic(continuousLocation):
                     glyphInstanceObject = glyphMutator.makeInstance(continuousLocation, bend=bend)
@@ -1037,14 +1050,20 @@ class UFOOperator(object):
                 font[glyphName].clear()
                 glyphInstanceObject.drawPoints(pPen)
             font[glyphName].width = glyphInstanceObject.width
-
+            # add designspace location to lib
+            font.lib['designspace.location'] = list(instanceDescriptor.location.items())
+            if self.useVarlib:
+                font.lib['designspace.mathmodel'] = "fonttools.varlib"
+            else:
+                font.lib['designspace.mathmodel'] = "mutatorMath"
         if self.debug:
             self.logger.info(f"\t\t\t{len(selectedGlyphNames)} glyphs added")
         return font
 
     def randomLocation(self, extrapolate=0, anisotropic=False, roundValues=True):
         """A good random location, for quick testing and entertainment
-        extrapolate is a scale of the min/max distance
+        extrapolate: is a factor of the (max-min) distance. 0 = nothing, 0.1 = 0.1 * (max - min)
+        anisotropic= True: *all* continuous axes get separate x, y values
         for discrete axes: random choice from the defined values
         for continuous axes: interpolated value between axis.minimum and axis.maximum
         """
@@ -1081,9 +1100,10 @@ class UFOOperator(object):
         data = dict(unitsPerEm=1000, ascender=750, descender=-250, xHeight=500)
         if infoMutator is None:
             return data
-        if not self.isAnisotropic(location):
-            infoInstanceObject = infoMutator.makeInstance(loc, bend=bend)
+        if not self.isAnisotropic(continuousLocation):
+            infoInstanceObject = infoMutator.makeInstance(continuousLocation, bend=bend)
         else:
+            locHorizontal, locVertical = self.splitAnisotropic(continuousLocation)
             horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
             verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
             # merge them again
@@ -1091,11 +1111,8 @@ class UFOOperator(object):
         if roundGeometry:
             infoInstanceObject = infoInstanceObject.round()
         data = dict(unitsPerEm=infoInstanceObject.unitsPerEm, ascender=infoInstanceObject.ascender, descender=infoInstanceObject.descender, xHeight=infoInstanceObject.xHeight)
-        print(dir(infoInstanceObject))
         return data
 
-    # cache? could cause a lot of material in memory that we don't really need. Test this!
-    #@memoize
     def makeOneGlyph(self, glyphName, location, bend=False, decomposeComponents=True, useVarlib=False, roundGeometry=False, clip=False):
         """
         glyphName: 
@@ -1119,6 +1136,7 @@ class UFOOperator(object):
             return None
         previousModel = self.useVarlib
         self.useVarlib = useVarlib
+        glyphInstanceObject = None
         glyphMutator, unicodes = self.getGlyphMutator(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
         if not glyphMutator: return None
         try:
@@ -1143,9 +1161,10 @@ class UFOOperator(object):
                 note = "makeOneGlyph: Quite possibly some sort of data alignment error in %s" % glyphName
                 self.logger.info(note)
                 return None
-        glyphInstanceObject.unicodes = unicodes
-        if roundGeometry:
-            glyphInstanceObject.round()
+        if glyphInstanceObject:
+            glyphInstanceObject.unicodes = unicodes
+            if roundGeometry:
+                glyphInstanceObject.round()
         self.useVarlib = previousModel
         return glyphInstanceObject
 
@@ -1205,12 +1224,12 @@ class UFOOperator(object):
 if __name__ == "__main__":
     import time, random
     from fontParts.world import RFont
-    ds5Path = "../../Tests/ds5/ds5.designspace"
+    #ds5Path = "../../Tests/ds5/ds5.designspace"
     ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wght_wght.designspace"
     #ds5Path = None
     dumpCacheLog = True
-    makeUFOs = False
-    debug = False
+    makeUFOs = True
+    debug = True
     startTime = time.time()
     if ds5Path is None:
         doc = UFOOperator()
@@ -1220,33 +1239,30 @@ if __name__ == "__main__":
     print("collectForegroundLayerNames", doc.collectForegroundLayerNames())
     if makeUFOs:
         doc.generateUFOs()
-    #doc.updateFonts([f])
-    #doc._logLoadedFonts()
-    loc = doc.newDefaultLocation()
-    res = doc.makeOneGlyph("glyphOne", location=loc)
-    
-    if dumpCacheLog:
-        if debug:
-            doc.logger.info(f"Test: cached {len(_memoizeCache)} items")
-            for key, item in _memoizeCache.items():
-                doc.logger.info(f"\t\t{key} {item}")
+    randomLocation = doc.randomLocation()
+    randomGlyphName = random.choice(doc.glyphNames)
+    res = doc.makeOneGlyph(randomGlyphName, location=randomLocation)
     endTime = time.time()
     duration = endTime - startTime
     print(f"duration: {duration}" )
 
-    inspectMemoizeCache()
-    for key, value in _memoizeStats.items():
-        print(key[0], value)
-
     # make some font proportions
-    props = doc.makeFontProportions(loc)
-    print(props)
+    print(doc.makeFontProportions(randomLocation))
 
+    # some random locations
     for i in range(10):
         print(doc.randomLocation(extrapolate=0.1))
 
-    print('getReverseComponentMapping', doc.getReverseComponentMapping())
+    # this is what reverse component mapping looks like:
+    print(doc.getReverseComponentMapping())
+
+    # these are all the discrete locations in this designspace
     print(doc.getDiscreteLocations())
 
     # include glyphs in which the glyph is used a component
-    print(doc.glyphChanged("C", includeDependencies=True))
+    print(doc.glyphChanged(randomGlyphName, includeDependencies=True))
+
+    # get a list of font objects
+    print(doc.getFonts())
+
+    print(doc.glyphsInCache())

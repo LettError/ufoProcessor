@@ -23,7 +23,8 @@ class UFOOperatorTester(object):
         
         self.w.makeSomeInstancesButton = vanilla.Button((10, 40, 400, 20), "Make instances of the same glyph", callback=self.makeInstancesOfSameGlyphButtonCallback)
         self.w.makeSomeGlyphsButton = vanilla.Button((10, 70, 400, 20), "Make instances of different glyphs", callback=self.makeInstancesOfDifferentGlyphsButtonCallback)
-        self.w.generateInstances = vanilla.Button((10, 100, 400, 20), "Generate instances", callback=self.generateInstancesButtonCallback)
+        self.w.generateInstancesButton = vanilla.Button((10, 100, 400, 20), "Generate instances", callback=self.generateInstancesButtonCallback)
+        self.w.reportGlyphChangedButton = vanilla.Button((10, 130, 400, 20), "Report random glyph as changed", callback=self.reportRandomGlyphChangedButtonCallback)
 
         self.w.pathText = vanilla.TextBox((230, 12, -10, 20), "...")
         self.w.cacheItemsList = vanilla.List((0, 170, -0, 210),
@@ -43,13 +44,24 @@ class UFOOperatorTester(object):
         self.reload()
         
     def selectionCallback(self, sender):
-        print('selectionCallback', sender)
+        pass
 
     def closeWindow(self, something=None):
-        print("closeWindow", something)
+        #print("closeWindow", something)
         self.doc.changed()
         pass
     
+    def reportRandomGlyphChangedButtonCallback(self, sender):
+        for i in range(10):
+            namesLeft = self.doc.glyphsInCache()
+            candidateName = None
+            if namesLeft:
+                candidateName = random.choice(namesLeft)
+                print(f'reportRandomGlyphChangedButtonCallback {i} {candidateName}')
+            if candidateName:
+                self.doc.glyphChanged(candidateName, includeDependencies=True)
+        self.updateList()
+        
     def generateInstancesButtonCallback(self, sender):
         self.doc.loadFonts()
         self.doc.generateUFOs()
