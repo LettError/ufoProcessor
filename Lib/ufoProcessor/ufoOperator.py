@@ -1,7 +1,9 @@
 import os
 import glob
 import functools
+import itertools
 
+import types
 import random
 import defcon
 from warnings import warn
@@ -56,25 +58,41 @@ def memoize(function):
         immutablekwargs = immutify(kwargs)
         key = (function.__name__, self, immutableargs, immutify(kwargs))
         if key in _memoizeCache:
-            if not key in _memoizeStats:
-                _memoizeStats[key] = 0
+            # keep track of how often we get to serve something from the cache
+            # note: if the object itself is part of the key
+            # keeping these stats will keep the object around
             _memoizeStats[key] += 1
             return _memoizeCache[key]
         else:
             result = function(self, *args, **kwargs)
             _memoizeCache[key] = result
+            _memoizeStats[key] = 1
             return result
     return wrapper
 
 def inspectMemoizeCache():
     functionNames = []
-    stats = {}
-    for k in _memoizeCache.keys():
-        functionName = k[0]
-        if not functionName in stats:
-            stats[functionName] = 0
-        stats[functionName] += 1
-    print(stats)
+    frequency = []
+    objects = {}
+    items = []
+    for key, value in  _memoizeCache.items():
+        if key[0] == "getGlyphMutator":
+            functionName = f"{id(key[1]):X} {key[0]}: {key[2][0][0]}"
+        else:
+            functionName = f"{id(key[1]):X} {key[0]}"
+        if not functionName in objects:
+            objects[functionName] = 0
+        objects[functionName] += 1
+    items = [(k, v) for k, v in objects.items()]
+    for key in _memoizeStats.keys():
+        if key[0] == "getGlyphMutator":
+            functionName = f"{id(key[1]):X} {key[0]}: {key[2][0][0]}"
+        else:
+            functionName = f"{id(key[1]):X} {key[0]}"
+        called = _memoizeStats[key]
+        frequency.append((functionName, called))
+    frequency.sort()
+    return items, frequency
 
 def getUFOVersion(ufoPath):
     # Peek into a ufo to read its format version.
@@ -99,6 +117,16 @@ def getDefaultLayerName(f):
         return f.layers.defaultLayer.name
     elif issubclass(type(f), fontParts.fontshell.font.RFont):
         return f.defaultLayer.name
+    return None
+
+def getLayer(f, layerName):
+    # get the layer from a defcon font and from a fontparts font
+    if issubclass(type(f), defcon.objects.font.Font):
+        if layerName in f.layers:
+            return f.layers[layerName]
+    elif issubclass(type(f), fontParts.fontshell.font.RFont):
+        if layerName in f.layerOrder:
+            return f.getLayer(layerName)
     return None
 
 # wrapped, not inherited, as Just says.
@@ -259,6 +287,7 @@ class UFOOperator(object):
             for item in actions:
                 self.logger.infoItem(item)
         self._fontsLoaded = True
+        # XX maybe also make a character map here?
 
     def _logLoadedFonts(self):
         # dump info about the loaded fonts to the log
@@ -290,22 +319,40 @@ class UFOOperator(object):
             self.changed()
 
     # caching
+
+    def __del__(self):
+        self.changed()
+
     def changed(self):
         # clears everything relating to this designspacedocument
         # the cache could contain more designspacedocument objects.
         for key in list(_memoizeCache.keys()):
             if key[1] == self:
                 del _memoizeCache[key]
+                if key in _memoizeStats:
+                    del _memoizeStats[key]
         #_memoizeCache.clear()
 
-    def glyphChanged(self, glyphName):
-        # clears this one specific glyph from the memoize cache
+    def glyphChanged(self, glyphName, includeDependencies=False):
+        """Clears this one specific glyph from the memoize cache
+        includeDependencies = True: check where glyphName is used as a component
+            and remove those as well. 
+            Note: this must be check in each discreteLocation separately
+            because they can have different constructions."""
+        changedNames = set()
+        changedNames.add(glyphName)
+        if includeDependencies:
+            for discreteLocation in self.getDiscreteLocations():
+                reverseComponentMap = self.getReverseComponentMapping()
+                for compName in reverseComponentMap[glyphName]:
+                    print(f"\tglyphChanged include {compName}")
+                    changedNames.add(compName)
         for key in list(_memoizeCache.keys()):            
             #print(f"glyphChanged {[(i,m) for i, m in enumerate(key)]} {glyphName}")
             # the glyphname is hiding quite deep in key[2]
             # (('glyphTwo',),)
             # this is because of how immutify does it. Could be different I suppose but this works
-            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[2][0][0] == glyphName:
+            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[2][0][0] in changedNames:
                 del _memoizeCache[key]
    
    # manipulate locations and axes
@@ -362,6 +409,22 @@ class UFOOperator(object):
 
     axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
 
+    def getDiscreteLocations(self):
+         # return a list of all permutated discrete locations
+         # do we have a list of ordered axes?
+         #print("ordered axes", self.getOrderedDiscreteAxes())
+         values = []
+         names = []
+         discreteCoordinates = []
+         dd = []
+         for axis in self.getOrderedDiscreteAxes():
+             values.append(axis.values)
+             names.append(axis.name)
+         for r in itertools.product(*values):
+             # make a small dict for the discrete location values
+             discreteCoordinates.append({a:b for a,b in zip(names,r)})
+         return discreteCoordinates
+
     def getOrderedDiscreteAxes(self):
         # return the list of discrete axis objects, in the right order
         axes = []
@@ -407,7 +470,7 @@ class UFOOperator(object):
             [names.add(n) for n in _getComponentNames(sourceFont[glyphName])]
         return list(names)
 
-    @memoize
+    #@memoize
     def findSourceDescriptorsForDiscreteLocation(self, discreteLocDict=None):
         # return a list of all sourcedescriptors that share the values in the discrete loc tuple
         # so this includes all sourcedescriptors that point to layers
@@ -456,7 +519,7 @@ class UFOOperator(object):
             return buildMutator(items, axes=axesForMutator, bias=biasForMutator)
         return {}, None
 
-    @memoize
+    #@memoize
     def newDefaultLocation(self, bend=False, discreteLocation=None):
         # overwrite from fontTools.newDefaultLocation
         # we do not want this default location always to be mapped.
@@ -480,7 +543,6 @@ class UFOOperator(object):
                 loc[axisName] = axisValue
         return loc
 
-    @memoize
     def isAnisotropic(self, location):
         # check if the location has anisotropic values
         for v in location.values():
@@ -488,7 +550,6 @@ class UFOOperator(object):
                 return True
         return False
 
-    @memoize
     def splitAnisotropic(self, location):
         # split the anisotropic location into a horizontal and vertical component
         x = Location()
@@ -501,6 +562,45 @@ class UFOOperator(object):
                 x[dim] = y[dim] = val
         return x, y
 
+    # find out stuff about this designspace
+    def collectForegroundLayerNames(self):
+        """Return list of names of the default layers of all the fonts in this system. 
+            Include None and foreground. XX Why
+        """
+        names = set([None, 'foreground'])
+        for key, font in self.fonts.items():
+            names.add(getDefaultLayerName(font))
+        return list(names)
+
+    def getReverseComponentMapping(self, discreteLocation=None):
+        """Return a dict with reverse component mappings. 
+            Check if we're using fontParts or defcon
+            Check which part of the designspace we're in. 
+        """
+        if discreteLocation is not None:
+            sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
+        else:
+            sources = self.doc.sources
+        for sourceDescriptor in sources:
+            isDefault = self.isLocalDefault(sourceDescriptor.location)
+            #print("getReverseComponentMapping", sourceDescriptor.name, sourceDescriptor.location, isDefault)
+            if isDefault:
+                font = self.fonts.get(sourceDescriptor.name)
+                if font is None: return {}
+                #print("getReverseComponentMapping", font.__class__)
+                if issubclass(type(font), defcon.objects.font.Font):
+                    # defcon
+                    reverseComponentMapping = {}
+                    for base, comps in font.componentReferences.items():
+                        for c in comps:
+                            if not base in reverseComponentMapping:
+                                reverseComponentMapping[base] = set()
+                            reverseComponentMapping[base].add(c)
+                else:
+                    if hasattr(font, "getReverseComponentMapping"):
+                        reverseComponentMapping = font.getReverseComponentMapping()
+                return reverseComponentMapping
+        return {}
     
     def generateUFOs(self, useVarLib=None):
         # generate an UFO for each of the instance locations
@@ -563,15 +663,6 @@ class UFOOperator(object):
         infoBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
         bias, self._infoMutator = self.getVariationModel(infoItems, axes=self.getSerializedAxes(), bias=infoBias)
         return self._infoMutator
-
-    def collectForegroundLayerNames(self):
-        """Return list of names of the default layers of all the fonts in this system. 
-            Include None and foreground. XX Why
-        """
-        names = set([None, 'foreground'])
-        for key, font in self.fonts.items():
-            names.add(getDefaultLayerName(font))
-        return list(names)
 
     @memoize
     def getKerningMutator(self, pairs=None, discreteLocation=None):
@@ -651,20 +742,18 @@ class UFOOperator(object):
                 self.logger.info(note)
         return thing, unicodes
 
-    # stats indicate this does not get called very often, so caching may not be useful
-    #@memoize
     def isLocalDefault(self, location):
         # return True if location is a local default
+        # check for bending
         defaults = {}
         for aD in self.doc.axes:
-            defaults[aD.name] = aD.default
+            defaults[aD.name] = aD.map_forward(aD.default)
         for axisName, value in location.items():
             if defaults[axisName] != value:
                 return False
+        #print("yes isLocalDefault", defaults, location)
         return True
 
-    # stats indicate this does not get called very often, so caching may not be useful
-    #@memoize
     def filterThisLocation(self, location, mutedAxes=None):
         # return location with axes is mutedAxes removed
         # this means checking if the location is a non-default value
@@ -686,7 +775,7 @@ class UFOOperator(object):
             del new[mutedAxisName]
         return ignoreSource, new
 
-    @memoize
+    #@memoize
     def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
         """ Return a glyph mutator
             decomposeComponents = True causes the source glyphs to be decomposed first
@@ -953,7 +1042,7 @@ class UFOOperator(object):
             self.logger.info(f"\t\t\t{len(selectedGlyphNames)} glyphs added")
         return font
 
-    def randomLocation(self, extrapolate=0):
+    def randomLocation(self, extrapolate=0, anisotropic=False, roundValues=True):
         """A good random location, for quick testing and entertainment
         extrapolate is a scale of the min/max distance
         for discrete axes: random choice from the defined values
@@ -970,7 +1059,18 @@ class UFOOperator(object):
             else:
                 extraMinimum = aD.minimum
                 extraMaximum = aD.maximum
-            workLocation[aD.name] = ip(extraMinimum, extraMaximum, random.random())
+            if anisotropic:
+                x = ip(extraMinimum, extraMaximum, random.random())
+                y = ip(extraMinimum, extraMaximum, random.random())
+                if roundValues:
+                    x = round(x)
+                    y = round(y)
+                workLocation[aD.name] = (x,y)
+            else:
+                v = ip(extraMinimum, extraMaximum, random.random())
+                if roundValues:
+                    v = round(v)
+                workLocation[aD.name] = v
         return workLocation
 
     @memoize
@@ -995,7 +1095,7 @@ class UFOOperator(object):
         return data
 
     # cache? could cause a lot of material in memory that we don't really need. Test this!
-    @memoize
+    #@memoize
     def makeOneGlyph(self, glyphName, location, bend=False, decomposeComponents=True, useVarlib=False, roundGeometry=False, clip=False):
         """
         glyphName: 
@@ -1106,36 +1206,47 @@ if __name__ == "__main__":
     import time, random
     from fontParts.world import RFont
     ds5Path = "../../Tests/ds5/ds5.designspace"
+    ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wght_wght.designspace"
+    #ds5Path = None
     dumpCacheLog = True
-    makeUFOs = True
-    import os
-    if os.path.exists(ds5Path):
-        startTime = time.time()
-        doc = UFOOperator(ds5Path, useVarlib=True, debug=True)
+    makeUFOs = False
+    debug = False
+    startTime = time.time()
+    if ds5Path is None:
+        doc = UFOOperator()
+    else:
+        doc = UFOOperator(ds5Path, useVarlib=True, debug=debug)
         doc.loadFonts()
-        print("collectForegroundLayerNames", doc.collectForegroundLayerNames())
-        if makeUFOs:
-            doc.generateUFOs()
-        #doc.updateFonts([f])
-        #doc._logLoadedFonts()
-        loc = doc.newDefaultLocation()
-        res = doc.makeOneGlyph("glyphOne", location=loc)
-        
-        if dumpCacheLog:
+    print("collectForegroundLayerNames", doc.collectForegroundLayerNames())
+    if makeUFOs:
+        doc.generateUFOs()
+    #doc.updateFonts([f])
+    #doc._logLoadedFonts()
+    loc = doc.newDefaultLocation()
+    res = doc.makeOneGlyph("glyphOne", location=loc)
+    
+    if dumpCacheLog:
+        if debug:
             doc.logger.info(f"Test: cached {len(_memoizeCache)} items")
             for key, item in _memoizeCache.items():
                 doc.logger.info(f"\t\t{key} {item}")
-        endTime = time.time()
-        duration = endTime - startTime
-        print(f"duration: {duration}" )
+    endTime = time.time()
+    duration = endTime - startTime
+    print(f"duration: {duration}" )
 
-        inspectMemoizeCache()
-        for key, value in _memoizeStats.items():
-            print(key[0], value)
+    inspectMemoizeCache()
+    for key, value in _memoizeStats.items():
+        print(key[0], value)
 
-        # make some font proportions
-        props = doc.makeFontProportions(loc)
-        print(props)
+    # make some font proportions
+    props = doc.makeFontProportions(loc)
+    print(props)
 
-        for i in range(10):
-            print(doc.randomLocation(extrapolate=0.1))
+    for i in range(10):
+        print(doc.randomLocation(extrapolate=0.1))
+
+    print('getReverseComponentMapping', doc.getReverseComponentMapping())
+    print(doc.getDiscreteLocations())
+
+    # include glyphs in which the glyph is used a component
+    print(doc.glyphChanged("C", includeDependencies=True))

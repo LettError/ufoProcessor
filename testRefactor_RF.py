@@ -22,11 +22,11 @@ loc['width'] = randint(50, 100)
 #print(loc)
 
 # make some tests at different layers
-randomloc = doc.randomLocation(0.03)
+randomloc = doc.randomLocation(0.03, anisotropic=True)
 #print(randomloc)
 test = [
-    ("foreground", randomloc, False),
-    ("background", dict(width=75, italic=1), False),
+    ("foreground", doc.randomLocation(0.03, anisotropic=True), False),
+    ("background", doc.randomLocation(0.03, anisotropic=True), False),
     # ("random_width_inter_MM", dict(width=randint(50,100), italic=1), False),
     # ("random_width_xtr_MM", dict(width=randint(10,150), italic=1), False),
     # ("random_width_xtr_narrow_VL", dict(width=randint(10,50), italic=1), True),
