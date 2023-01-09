@@ -223,6 +223,17 @@ class UFOOperator(object):
     def addInstance(self, instanceDescriptor):
         self.doc.addInstance(instanceDescriptor)
 
+    def getVariableFonts(self):
+        return self.doc.getVariableFonts()
+
+    @property
+    def path(self):
+        return self.doc.path
+
+    @path.setter
+    def path(self, value):
+        self.doc.path = value
+
     @property
     def lib(self):
         if self.doc is not None:
@@ -253,10 +264,30 @@ class UFOOperator(object):
             return self.doc.formatVersion
         return []
 
+    @property
+    def rules(self):
+        return self.doc.rules
+
+    @property
+    def rulesProcessingLast(self):
+        return self.doc.rulesProcessingLast
+
+    @property
+    def map_backward(self):
+        return self.doc.map_backward
+
+    @property
+    def labelForUserLocation(self):
+        return self.doc.labelForUserLocation
+    
+    
     @formatVersion.setter
     def formatVersion(self, value):
         if self.doc is not None:
             self.doc.formatVersion = value
+
+    def getAxis(self, axisName):
+        return self.doc.getAxis(axisName)
 
     # loading and updating fonts
     def loadFonts(self, reload=False):
@@ -379,6 +410,16 @@ class UFOOperator(object):
         return names
 
    # manipulate locations and axes
+    def findDefault(self, discreteLocation=None):
+        # @@
+        defaultDesignLocation = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
+        sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
+        for s in sources:
+            print("findDefault", s.location, defaultDesignLocation)
+            if s.location == defaultDesignLocation:
+                return s
+        return None
+
     def splitLocation(self, location):
         # split a location in a continouous and a discrete part
         discreteAxes = [a.name for a in self.getOrderedDiscreteAxes()]
@@ -917,9 +958,7 @@ class UFOOperator(object):
         if doRules is not None:
             warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
         continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
-
         font = self._instantiateFont(None)
-
         loc = Location(continuousLocation)
         anisotropic = False
         locHorizontal = locVertical = loc
@@ -967,6 +1006,7 @@ class UFOOperator(object):
         font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
                 
         for sourceDescriptor in self.doc.sources:
+            # XX do we really want to copy all items from all libs?
             if sourceDescriptor.copyInfo:
                 # this is the source
                 if self.fonts[sourceDescriptor.name] is not None:
@@ -1224,8 +1264,8 @@ class UFOOperator(object):
 if __name__ == "__main__":
     import time, random
     from fontParts.world import RFont
-    #ds5Path = "../../Tests/ds5/ds5.designspace"
-    ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wght_wght.designspace"
+    ds5Path = "../../Tests/ds5/ds5.designspace"
+    #ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wght_wght.designspace"
     #ds5Path = None
     dumpCacheLog = True
     makeUFOs = True
@@ -1258,6 +1298,9 @@ if __name__ == "__main__":
 
     # these are all the discrete locations in this designspace
     print(doc.getDiscreteLocations())
+    for discreteLocation in doc.getDiscreteLocations():
+        s = doc.findDefault(discreteLocation)
+        print(f"default for discreteLocation {discreteLocation} {s}")
 
     # include glyphs in which the glyph is used a component
     print(doc.glyphChanged(randomGlyphName, includeDependencies=True))
