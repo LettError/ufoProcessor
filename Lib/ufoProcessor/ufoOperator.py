@@ -1,17 +1,14 @@
 import os
-import glob
 import functools
 import itertools
 
-import types
 import random
 import defcon
 from warnings import warn
 import collections
-import logging, traceback
+import traceback
 
 from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
-#from fontTools.designspaceLib.split import splitInterpolable
 from fontTools.ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
 from fontTools.misc import plistlib
 
@@ -23,8 +20,6 @@ from mutatorMath.objects.location import Location
 
 import fontParts.fontshell.font
 
-import ufoProcessor.varModels
-import ufoProcessor.emptyPen
 from ufoProcessor.varModels import VariationModelMutator
 from ufoProcessor.emptyPen import checkGlyphIsEmpty, DecomposePointPen
 from ufoProcessor.logger import Logger
@@ -36,7 +31,7 @@ def ip(a, b, f):
     return a+f*(b-a)
 
 def immutify(obj):
-    # make an immutable version of this object. 
+    # make an immutable version of this object.
     # assert immutify(10) == (10,)
     # assert immutify([10, 20, "a"]) == (10, 20, 'a')
     # assert immutify(dict(foo="bar", world=["a", "b"])) == ('foo', ('bar',), 'world', ('a', 'b'))
@@ -53,10 +48,10 @@ def immutify(obj):
 
 def memoize(function):
     @functools.wraps(function)
-    def wrapper(self, *args, **kwargs):        
-        immutableargs = tuple([immutify(a) for a in args])
+    def wrapper(self, *args, **kwargs):
+        immutableargs = immutify(args)
         immutablekwargs = immutify(kwargs)
-        key = (function.__name__, self, immutableargs, immutify(kwargs))
+        key = (function.__name__, self, immutableargs, immutablekwargs)
         if key in _memoizeCache:
             # keep track of how often we get to serve something from the cache
             # note: if the object itself is part of the key
@@ -71,16 +66,15 @@ def memoize(function):
     return wrapper
 
 def inspectMemoizeCache():
-    functionNames = []
     frequency = []
     objects = {}
     items = []
-    for key, value in  _memoizeCache.items():
+    for key, value in _memoizeCache.items():
         if key[0] == "getGlyphMutator":
             functionName = f"{id(key[1]):X} {key[0]}: {key[2][0][0]}"
         else:
             functionName = f"{id(key[1]):X} {key[0]}"
-        if not functionName in objects:
+        if functionName not in objects:
             objects[functionName] = 0
         objects[functionName] += 1
     items = [(k, v) for k, v in objects.items()]
@@ -129,9 +123,10 @@ def getLayer(f, layerName):
             return f.getLayer(layerName)
     return None
 
-# wrapped, not inherited, as Just says.
+
 class UFOOperator(object):
-    
+    # wrapped, not inherited, as Just says.
+
     fontClass = defcon.Font
     layerClass = defcon.Layer
     glyphClass = defcon.Glyph
@@ -149,7 +144,7 @@ class UFOOperator(object):
     mathGlyphClass = MathGlyph
     mathKerningClass = MathKerning
 
-    def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, debug =False):
+    def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, debug=False):
         self.ufoVersion = ufoVersion
         self.useVarlib = useVarlib
         self._fontsLoaded = False
@@ -157,15 +152,14 @@ class UFOOperator(object):
         self.roundGeometry = False
         self.mutedAxisNames = None    # list of axisname that need to be muted
         self.debug = debug
-        self.logger = None    
-        if pathOrObject is None:
-            self.doc = DesignSpaceDocument()
+        self.logger = None
+        if isinstance(pathOrObject, DesignSpaceDocument):
+            self.doc = pathOrObject
         elif isinstance(pathOrObject, str):
             self.doc = DesignSpaceDocument()
             self.doc.read(pathOrObject)
         else:
-            # XX test this
-            self.doc = pathOrObject
+            self.doc = DesignSpaceDocument()
 
         if self.debug:
             docBaseName = os.path.splitext(self.doc.path)[0]
@@ -183,7 +177,8 @@ class UFOOperator(object):
     def _instantiateFont(self, path):
         """ Return a instance of a font object with all the given subclasses"""
         try:
-            return self.fontClass(path,
+            return self.fontClass(
+                path,
                 layerClass=self.layerClass,
                 libClass=self.libClass,
                 kerningClass=self.kerningClass,
@@ -194,11 +189,12 @@ class UFOOperator(object):
                 glyphContourClass=self.glyphContourClass,
                 glyphPointClass=self.glyphPointClass,
                 glyphComponentClass=self.glyphComponentClass,
-                glyphAnchorClass=self.glyphAnchorClass)
+                glyphAnchorClass=self.glyphAnchorClass
+            )
         except TypeError:
             # if our fontClass doesnt support all the additional classes
             return self.fontClass(path)
-    
+
     # UFOProcessor compatibility
     # not sure whether to expose all the DesignSpaceDocument internals here
     # One can just use ufoOperator.doc to get it going?
@@ -217,11 +213,20 @@ class UFOOperator(object):
     def addAxis(self, axisDescriptor):
         self.doc.addAxis(axisDescriptor)
 
+    def addAxisDescriptor(self, **kwargs):
+        return self.doc.addAxisDescriptor(**kwargs)
+
     def addSource(self, sourceDescriptor):
         self.doc.addSource(sourceDescriptor)
 
+    def addSourceDescriptor(self, **kwargs):
+        return self.doc.addSourceDescriptor(**kwargs)
+
     def addInstance(self, instanceDescriptor):
         self.doc.addInstance(instanceDescriptor)
+
+    def addInstanceDescriptor(self, **kwargs):
+        return self.doc.addInstanceDescriptor(**kwargs)
 
     def getVariableFonts(self):
         return self.doc.getVariableFonts()
@@ -236,33 +241,23 @@ class UFOOperator(object):
 
     @property
     def lib(self):
-        if self.doc is not None:
-            return self.doc.lib
-        return None # return dict() maybe?
+        return self.doc.lib
 
     @property
     def axes(self):
-        if self.doc is not None:
-            return self.doc.axes
-        return []
+        return self.doc.axes
 
     @property
     def sources(self):
-        if self.doc is not None:
-            return self.doc.sources
-        return []
+        return self.doc.sources
 
     @property
     def instances(self):
-        if self.doc is not None:
-            return self.doc.instances
-        return []
+        return self.doc.instances
 
     @property
     def formatVersion(self):
-        if self.doc is not None:
-            return self.doc.formatVersion
-        return []
+        return self.doc.formatVersion
 
     @property
     def rules(self):
@@ -279,12 +274,18 @@ class UFOOperator(object):
     @property
     def labelForUserLocation(self):
         return self.doc.labelForUserLocation
-    
-    
+
+    @property
+    def locationLabels(self):
+        return self.doc.locationLabels
+
+    @property
+    def writerClass(self):
+        return self.doc.writerClass
+
     @formatVersion.setter
     def formatVersion(self, value):
-        if self.doc is not None:
-            self.doc.formatVersion = value
+        self.doc.formatVersion = value
 
     def getAxis(self, axisName):
         return self.doc.getAxis(axisName)
@@ -320,26 +321,19 @@ class UFOOperator(object):
         self._fontsLoaded = True
         # XX maybe also make a character map here?
 
-    def _logLoadedFonts(self):
-        # dump info about the loaded fonts to the log
-        items = []
-        self.logger.info("\t# font status:")
-        for name, fontObj in self.fonts.items():
-            self.logger.info(f"\t\tloaded: , id: {id(fontObj):X}, {os.path.basename(fontObj.path)}, format: {getUFOVersion(fontObj.path)}")
-
     def updateFonts(self, fontObjects):
-        # this is to update the loaded fonts. 
+        # this is to update the loaded fonts.
         # it should be the way for an editor to provide a list of fonts that are open
-        #self.fonts[sourceDescriptor.name] = None
+        # self.fonts[sourceDescriptor.name] = None
         hasUpdated = False
         for newFont in fontObjects:
             for fontName, haveFont in self.fonts.items():
                 # XX what happens here when the font did not load?
-                # haveFont will be None. Scenario: font initially missing, then added. 
+                # haveFont will be None. Scenario: font initially missing, then added.
                 if haveFont is None:
                     self.fonts[fontName] = newFont
                     hasUpdated = True
-                if haveFont.path == newFont.path and id(haveFont)!=id(newFont):
+                if haveFont.path == newFont.path and haveFont is newFont:
                     note = f"## updating source {self.fonts[fontName]} with {newFont}"
                     if self.debug:
                         self.logger.time()
@@ -370,12 +364,11 @@ class UFOOperator(object):
                 del _memoizeCache[key]
                 if key in _memoizeStats:
                     del _memoizeStats[key]
-        #_memoizeCache.clear()
 
     def glyphChanged(self, glyphName, includeDependencies=False):
         """Clears this one specific glyph from the memoize cache
         includeDependencies = True: check where glyphName is used as a component
-            and remove those as well. 
+            and remove those as well.
             Note: this must be check in each discreteLocation separately
             because they can have different constructions."""
         changedNames = set()
@@ -383,12 +376,12 @@ class UFOOperator(object):
         if includeDependencies:
             for discreteLocation in self.getDiscreteLocations():
                 reverseComponentMap = self.getReverseComponentMapping()
-                if not glyphName in reverseComponentMap: continue
+                if glyphName not in reverseComponentMap:
+                    continue
                 for compName in reverseComponentMap[glyphName]:
                     changedNames.add(compName)
         remove = []
-        for key in list(_memoizeCache.keys()):            
-            #print(f"glyphChanged {[(i,m) for i, m in enumerate(key)]} {glyphName}")
+        for key in list(_memoizeCache.keys()):
             # the glyphname is hiding quite deep in key[2]
             # (('glyphTwo',),)
             # this is because of how immutify does it. Could be different I suppose but this works
@@ -402,20 +395,18 @@ class UFOOperator(object):
     def glyphsInCache(self):
         """report which glyphs are in the cache at the moment"""
         names = set()
-        for key in list(_memoizeCache.keys()):            
+        for key in list(_memoizeCache.keys()):
             if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[1] == self:
                 names.add(key[2][0][0])
         names = list(names)
         names.sort()
         return names
 
-   # manipulate locations and axes
+    # manipulate locations and axes
     def findDefault(self, discreteLocation=None):
-        # @@
         defaultDesignLocation = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
         sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
         for s in sources:
-            print("findDefault", s.location, defaultDesignLocation)
             if s.location == defaultDesignLocation:
                 return s
         return None
@@ -444,8 +435,8 @@ class UFOOperator(object):
                     tag=axis.tag,
                     name=axis.name,
                     labelNames=axis.labelNames,
-                    minimum = min(axis.values), # XX is this allowed
-                    maximum = max(axis.values), # XX is this allowed
+                    minimum=min(axis.values),  # XX is this allowed
+                    maximum=max(axis.values),  # XX is this allowed
                     values=axis.values,
                     default=axis.default,
                     hidden=axis.hidden,
@@ -474,19 +465,18 @@ class UFOOperator(object):
     axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
 
     def getDiscreteLocations(self):
-         # return a list of all permutated discrete locations
-         # do we have a list of ordered axes?
-         values = []
-         names = []
-         discreteCoordinates = []
-         dd = []
-         for axis in self.getOrderedDiscreteAxes():
-             values.append(axis.values)
-             names.append(axis.name)
-         for r in itertools.product(*values):
-             # make a small dict for the discrete location values
-             discreteCoordinates.append({a:b for a,b in zip(names,r)})
-         return discreteCoordinates
+        # return a list of all permutated discrete locations
+        # do we have a list of ordered axes?
+        values = []
+        names = []
+        discreteCoordinates = []
+        for axis in self.getOrderedDiscreteAxes():
+            values.append(axis.values)
+            names.append(axis.name)
+        for r in itertools.product(*values):
+            # make a small dict for the discrete location values
+            discreteCoordinates.append({a: b for a, b in zip(names, r)})
+        return discreteCoordinates
 
     def getOrderedDiscreteAxes(self):
         # return the list of discrete axis objects, in the right order
@@ -510,7 +500,7 @@ class UFOOperator(object):
         # check if the discrete values in this location are allowed
         for discreteAxis in self.getOrderedDiscreteAxes():
             testValue = location.get(discreteAxis.name)
-            if not testValue in discreteAxis.values:
+            if testValue not in discreteAxis.values:
                 return False
         return True
 
@@ -529,7 +519,8 @@ class UFOOperator(object):
             return list(names)
         for sourceDescriptor in self.findSourceDescriptorsForDiscreteLocation(discreteLocation):
             sourceFont = self.fonts[sourceDescriptor.name]
-            if not glyphName in sourceFont: continue
+            if glyphName not in sourceFont:
+                continue
             [names.add(n) for n in _getComponentNames(sourceFont[glyphName])]
         return list(names)
 
@@ -563,14 +554,12 @@ class UFOOperator(object):
                 return dict(), VariationModelMutator(items, axes=self.doc.axes, extrapolate=True)
             except TypeError:
                 if self.debug:
-                    error = traceback.format_exc()
-                    note = "Error while making VariationModelMutator for {loc}:\n{error}"
+                    note = "Error while making VariationModelMutator for {loc}:\n{traceback.format_exc()}"
                     self.logger.info(note)
                 return {}, None
             except (KeyError, AssertionError):
                 if self.debug:
-                    error = traceback.format_exc()
-                    note = "UFOProcessor.getVariationModel error: {error}"
+                    note = "UFOProcessor.getVariationModel error: {traceback.format_exc()}"
                     self.logger.info(note)
                 return {}, None
         else:
@@ -582,7 +571,7 @@ class UFOOperator(object):
             return buildMutator(items, axes=axesForMutator, bias=biasForMutator)
         return {}, None
 
-    #@memoize
+    # @memoize
     def newDefaultLocation(self, bend=False, discreteLocation=None):
         # overwrite from fontTools.newDefaultLocation
         # we do not want this default location always to be mapped.
@@ -618,7 +607,7 @@ class UFOOperator(object):
         x = Location()
         y = Location()
         for dim, val in location.items():
-            if type(val)==tuple:
+            if isinstance(val, (tuple, list)):
                 x[dim] = val[0]
                 y[dim] = val[1]
             else:
@@ -627,7 +616,7 @@ class UFOOperator(object):
 
     # find out stuff about this designspace
     def collectForegroundLayerNames(self):
-        """Return list of names of the default layers of all the fonts in this system. 
+        """Return list of names of the default layers of all the fonts in this system.
             Include None and foreground. XX Why
         """
         names = set([None, 'foreground'])
@@ -636,9 +625,9 @@ class UFOOperator(object):
         return list(names)
 
     def getReverseComponentMapping(self, discreteLocation=None):
-        """Return a dict with reverse component mappings. 
+        """Return a dict with reverse component mappings.
             Check if we're using fontParts or defcon
-            Check which part of the designspace we're in. 
+            Check which part of the designspace we're in.
         """
         if discreteLocation is not None:
             sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
@@ -648,13 +637,14 @@ class UFOOperator(object):
             isDefault = self.isLocalDefault(sourceDescriptor.location)
             if isDefault:
                 font = self.fonts.get(sourceDescriptor.name)
-                if font is None: return {}
+                if font is None:
+                    return {}
                 if issubclass(type(font), defcon.objects.font.Font):
                     # defcon
                     reverseComponentMapping = {}
                     for base, comps in font.componentReferences.items():
                         for c in comps:
-                            if not base in reverseComponentMapping:
+                            if base not in reverseComponentMapping:
                                 reverseComponentMapping[base] = set()
                             reverseComponentMapping[base].add(c)
                 else:
@@ -662,7 +652,7 @@ class UFOOperator(object):
                         reverseComponentMapping = font.getReverseComponentMapping()
                 return reverseComponentMapping
         return {}
-    
+
     def generateUFOs(self, useVarLib=None):
         # generate an UFO for each of the instance locations
         previousModel = self.useVarlib
@@ -679,12 +669,13 @@ class UFOOperator(object):
                 continue
             pairs = None
             bend = False
-            font = self.makeInstance(instanceDescriptor,
-                    processRules,
-                    glyphNames=self.glyphNames,
-                    pairs=pairs,
-                    bend=bend,
-                    )
+            font = self.makeInstance(
+                instanceDescriptor,
+                processRules,
+                glyphNames=self.glyphNames,
+                pairs=pairs,
+                bend=bend,
+            )
             if self.debug:
                 self.logger.info(f"\t\t{os.path.basename(instanceDescriptor.path)}")
             instanceFolder = os.path.dirname(instanceDescriptor.path)
@@ -743,7 +734,8 @@ class UFOOperator(object):
                     continuous, discrete = self.splitLocation(sourceDescriptor.location)
                     loc = Location(continuous)
                     sourceFont = self.fonts[sourceDescriptor.name]
-                    if sourceFont is None: continue
+                    if sourceFont is None:
+                        continue
                     # this makes assumptions about the groups of all sources being the same.
                     kerningItems.append((loc, self.mathKerningClass(sourceFont.kerning, sourceFont.groups)))
         else:
@@ -775,10 +767,7 @@ class UFOOperator(object):
         return self._kerningMutator
 
     @memoize
-    def getGlyphMutator(self, glyphName,
-            decomposeComponents=False,
-            **discreteLocation,  
-            ):
+    def getGlyphMutator(self, glyphName, decomposeComponents=False, **discreteLocation):
         """make a mutator / varlib object for glyphName, with the sources for the given discrete location"""
         items, unicodes = self.collectSourcesForGlyph(glyphName, decomposeComponents=decomposeComponents, **discreteLocation)
         new = []
@@ -786,14 +775,14 @@ class UFOOperator(object):
             if hasattr(b, "toMathGlyph"):
                 # note: calling toMathGlyph ignores the mathGlyphClass preference
                 # maybe the self.mathGlyphClass is not necessary?
-                new.append((a,b.toMathGlyph()))
+                new.append((a, b.toMathGlyph()))
             else:
-                new.append((a,self.mathGlyphClass(b)))
+                new.append((a, self.mathGlyphClass(b)))
         thing = None
         thisBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
         try:
-            bias, thing = self.getVariationModel(new, axes=self.getSerializedAxes(), bias=thisBias) #xx
-        except:
+            bias, thing = self.getVariationModel(new, axes=self.getSerializedAxes(), bias=thisBias)  # xx
+        except Exception:
             error = traceback.format_exc()
             note = f"Error in getGlyphMutator for {glyphName}:\n{error}"
             if self.debug:
@@ -832,7 +821,7 @@ class UFOOperator(object):
             del new[mutedAxisName]
         return ignoreSource, new
 
-    #@memoize
+    # @memoize
     def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
         """ Return a glyph mutator
             decomposeComponents = True causes the source glyphs to be decomposed first
@@ -846,7 +835,7 @@ class UFOOperator(object):
         foundEmpty = False
         # is bend=True necessary here?
         defaultLocation = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
-        # 
+        #
         if discreteLocation is not None:
             sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
         else:
@@ -867,10 +856,11 @@ class UFOOperator(object):
             if ignoreSource:
                 continue
             f = self.fonts.get(sourceDescriptor.name)
-            if f is None: continue
+            if f is None:
+                continue
             loc = Location(sourceDescriptor.location)
             sourceLayer = f
-            if not glyphName in f:
+            if glyphName not in f:
                 # log this>
                 continue
             layerName = getDefaultLayerName(f)
@@ -889,7 +879,7 @@ class UFOOperator(object):
                     # so we're skipping!
                     continue
             # still have to check if the sourcelayer glyph is empty
-            if not glyphName in sourceLayer:
+            if glyphName not in sourceLayer:
                 continue
             else:
                 sourceGlyphObject = sourceLayer[glyphName]
@@ -898,8 +888,8 @@ class UFOOperator(object):
                         unicodes.add(u)
                 if checkGlyphIsEmpty(sourceGlyphObject, allowWhiteSpace=True):
                     foundEmpty = True
-                    #sourceGlyphObject = None
-                    #continue
+                    # sourceGlyphObject = None
+                    # continue
             if decomposeComponents:
                 # what about decomposing glyphs in a partial font?
                 temp = self.glyphClass()
@@ -911,11 +901,13 @@ class UFOOperator(object):
                 processThis = temp
             else:
                 processThis = sourceGlyphObject
-            sourceInfo = dict(source=f.path, glyphName=glyphName,
-                    layerName=layerName,
-                    location=filteredLocation,  #   sourceDescriptor.location,
-                    sourceName=sourceDescriptor.name,
-                    )
+            sourceInfo = dict(
+                source=f.path,
+                glyphName=glyphName,
+                layerName=layerName,
+                location=filteredLocation,  # sourceDescriptor.location,
+                sourceName=sourceDescriptor.name,
+            )
             if hasattr(processThis, "toMathGlyph"):
                 processThis = processThis.toMathGlyph()
             else:
@@ -973,9 +965,8 @@ class UFOOperator(object):
                     kerningMutator = self.getKerningMutator(pairs=pairs, discreteLocation=discreteLocation)
                     kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
                     kerningObject.extractKerning(font)
-                except:
-                    error = traceback.format_exc()
-                    note = f"makeInstance: Could not make kerning for {loc}\n{error}"
+                except Exception:
+                    note = f"makeInstance: Could not make kerning for {loc}\n{traceback.format_exc()}"
                     if self.debug:
                         self.logger.info(note)
             else:
@@ -995,7 +986,7 @@ class UFOOperator(object):
                 horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
                 verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
                 # merge them again
-                infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
+                infoInstanceObject = (1,0) * horizontalInfoInstanceObject + (0,1) * verticalInfoInstanceObject
             if self.roundGeometry:
                 infoInstanceObject = infoInstanceObject.round()
             infoInstanceObject.extractInfo(font.info)
@@ -1004,7 +995,7 @@ class UFOOperator(object):
         font.info.postscriptFontName = instanceDescriptor.postScriptFontName # yikes, note the differences in capitalisation..
         font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
         font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
-                
+
         for sourceDescriptor in self.doc.sources:
             # XX do we really want to copy all items from all libs?
             if sourceDescriptor.copyInfo:
@@ -1031,7 +1022,7 @@ class UFOOperator(object):
             selectedGlyphNames = glyphNames
         else:
             selectedGlyphNames = self.glyphNames
-        if not 'public.glyphOrder' in font.lib.keys():
+        if 'public.glyphOrder' not in font.lib.keys():
             # should be the glyphorder from the default, yes?
             font.lib['public.glyphOrder'] = selectedGlyphNames
 
@@ -1045,7 +1036,6 @@ class UFOOperator(object):
                 continue
             font.newGlyph(glyphName)
             font[glyphName].clear()
-            glyphInstanceUnicodes = []
             font[glyphName].unicodes = unicodes
             try:
                 if not self.isAnisotropic(continuousLocation):
@@ -1055,7 +1045,7 @@ class UFOOperator(object):
                     horizontalGlyphInstanceObject = glyphMutator.makeInstance(locHorizontal, bend=bend)
                     verticalGlyphInstanceObject = glyphMutator.makeInstance(locVertical, bend=bend)
                     # merge them again in a beautiful single line:
-                    glyphInstanceObject = (1,0)*horizontalGlyphInstanceObject + (0,1)*verticalGlyphInstanceObject
+                    glyphInstanceObject = (1, 0) * horizontalGlyphInstanceObject + (0, 1) * verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
                 if self.debug:
@@ -1067,7 +1057,7 @@ class UFOOperator(object):
                     glyphInstanceObject = glyphInstanceObject.round()
                 except AttributeError:
                     # what are we catching here?
-                    # math objects without a round method? 
+                    # math objects without a round method?
                     if self.debug:
                         note = f"makeInstance: no round method for {glyphInstanceObject} ?"
                         self.logger.info(note)
@@ -1113,8 +1103,8 @@ class UFOOperator(object):
         for aD in self.getOrderedContinuousAxes():
             if extrapolate:
                 delta = (aD.maximum - aD.minimum)
-                extraMinimum = aD.minimum - extrapolate*delta
-                extraMaximum = aD.maximum + extrapolate*delta
+                extraMinimum = aD.minimum - extrapolate * delta
+                extraMaximum = aD.maximum + extrapolate * delta
             else:
                 extraMinimum = aD.minimum
                 extraMaximum = aD.maximum
@@ -1124,7 +1114,7 @@ class UFOOperator(object):
                 if roundValues:
                     x = round(x)
                     y = round(y)
-                workLocation[aD.name] = (x,y)
+                workLocation[aD.name] = (x, y)
             else:
                 v = ip(extraMinimum, extraMaximum, random.random())
                 if roundValues:
@@ -1147,7 +1137,7 @@ class UFOOperator(object):
             horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
             verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
             # merge them again
-            infoInstanceObject = (1,0)*horizontalInfoInstanceObject + (0,1)*verticalInfoInstanceObject
+            infoInstanceObject = (1, 0) * horizontalInfoInstanceObject + (0, 1) * verticalInfoInstanceObject
         if roundGeometry:
             infoInstanceObject = infoInstanceObject.round()
         data = dict(unitsPerEm=infoInstanceObject.unitsPerEm, ascender=infoInstanceObject.ascender, descender=infoInstanceObject.descender, xHeight=infoInstanceObject.xHeight)
@@ -1155,7 +1145,7 @@ class UFOOperator(object):
 
     def makeOneGlyph(self, glyphName, location, bend=False, decomposeComponents=True, useVarlib=False, roundGeometry=False, clip=False):
         """
-        glyphName: 
+        glyphName:
         location: location including discrete axes
         bend: apply axis transformations
         decomposeComponents: decompose all components so we get a proper representation of the shape
@@ -1183,7 +1173,6 @@ class UFOOperator(object):
             if not self.isAnisotropic(location):
                 glyphInstanceObject = glyphMutator.makeInstance(continuousLocation, bend=bend)
             else:
-                anisotropic = True
                 if self.debug:
                     self.logger.info(f"\t\tmakeOneGlyph anisotropic location: {location}")
                 loc = Location(continuousLocation)
@@ -1192,7 +1181,7 @@ class UFOOperator(object):
                 horizontalGlyphInstanceObject = glyphMutator.makeInstance(locHorizontal, bend=bend)
                 verticalGlyphInstanceObject = glyphMutator.makeInstance(locVertical, bend=bend)
                 # merge them again
-                glyphInstanceObject = (1,0)*horizontalGlyphInstanceObject + (0,1)*verticalGlyphInstanceObject
+                glyphInstanceObject = (1, 0) * horizontalGlyphInstanceObject + (0, 1) * verticalGlyphInstanceObject
                 if self.debug:
                     self.logger.info(f"makeOneGlyph anisotropic glyphInstanceObject {glyphInstanceObject}")
         except IndexError:
