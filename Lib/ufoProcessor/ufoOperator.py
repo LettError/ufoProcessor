@@ -144,7 +144,7 @@ class UFOOperator(object):
     mathGlyphClass = MathGlyph
     mathKerningClass = MathKerning
 
-    def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, debug=False):
+    def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, extrapolate=False, debug=False):
         self.ufoVersion = ufoVersion
         self.useVarlib = useVarlib
         self._fontsLoaded = False
@@ -153,6 +153,7 @@ class UFOOperator(object):
         self.mutedAxisNames = None    # list of axisname that need to be muted
         self.debug = debug
         self.logger = None
+        self.extrapolate = extrapolate  # if true allow extrapolation
         if isinstance(pathOrObject, DesignSpaceDocument):
             self.doc = pathOrObject
         elif isinstance(pathOrObject, str):
@@ -325,6 +326,13 @@ class UFOOperator(object):
         self._fontsLoaded = True
         # XX maybe also make a character map here?
 
+    def _logLoadedFonts(self):
+        # dump info about the loaded fonts to the log
+        items = []
+        self.logger.info("\t# font status:")
+        for name, fontObj in self.fonts.items():
+            self.logger.info(f"\t\tloaded: , id: {id(fontObj):X}, {os.path.basename(fontObj.path)}, format: {getUFOVersion(fontObj.path)}")
+
     def updateFonts(self, fontObjects):
         # this is to update the loaded fonts.
         # it should be the way for an editor to provide a list of fonts that are open
@@ -355,6 +363,24 @@ class UFOOperator(object):
             if f is not None:
                 fonts.append((f, sourceDescriptor.location))
         return fonts
+
+    def getCharacterMapping(self, discreteLocation=None):
+        # return a unicode -> glyphname map for the default of the system or discreteLocation
+        characterMap = {}
+        #for 
+        defaultSourceDescriptor = self.findDefault(discreteLocation=discreteLocation)
+        if not defaultSourceDescriptor: 
+            print("no defaultSourceDescriptor")
+            return {}
+        defaultFont = self.fonts.get(defaultSourceDescriptor.name)
+        if defaultFont is None:
+            print("no defaultFont")
+            return {}
+        for glyph in defaultFont:
+            if glyph.unicodes:
+                for u in glyph.unicodes:
+                    characterMap[u] = glyph.name
+        return characterMap
 
     # caching
     def __del__(self):
@@ -528,7 +554,6 @@ class UFOOperator(object):
             [names.add(n) for n in _getComponentNames(sourceFont[glyphName])]
         return list(names)
 
-    #@memoize
     def findSourceDescriptorsForDiscreteLocation(self, discreteLocDict=None):
         # return a list of all sourcedescriptors that share the values in the discrete loc tuple
         # so this includes all sourcedescriptors that point to layers
@@ -575,7 +600,6 @@ class UFOOperator(object):
             return buildMutator(items, axes=axesForMutator, bias=biasForMutator)
         return {}, None
 
-    # @memoize
     def newDefaultLocation(self, bend=False, discreteLocation=None):
         # overwrite from fontTools.newDefaultLocation
         # we do not want this default location always to be mapped.
@@ -804,6 +828,57 @@ class UFOOperator(object):
                 return False
         return True
 
+    def axesByName(self):
+        # return a dict[axisName]: axisDescriptor
+        axes = {}
+        for aD in self.doc.axes:
+            axes[aD.name] = aD
+        return axes
+
+    def clipThisLocation(self, location):
+        # return a copy of the location without extrapolation
+        axesByName = self.axesByName()
+        #print('axesByName', axesByName)
+        new = {}
+        for axisName, value in location.items():
+            aD = axesByName.get(axisName)
+            #print(aD, axisName, location)
+            clippedValues = []
+            if type(value) == tuple:
+                testValues = list(value)
+            else:
+                testValues = [value]
+            #print("testValues", testValues)
+            for value in testValues:
+                if hasattr(aD, "values"):
+                    # a discrete axis
+                    mx = max(aD.values)
+                    mn = min(aD.values)
+                    if value in aD.values:
+                        clippedValues.append(value)
+                    elif value > mx:
+                        clippedValues.append(mx)
+                    elif value < mn:
+                        clippedValues.append(mn)
+                    else:
+                        # do we want to test if the value is part of the values allowed in this axes?
+                        # or do we just assume it is correct?
+                        # possibility: snap to the nearest value?
+                        clippedValues.append(value)
+                else:
+                    # a continuous axis
+                    if value < aD.minimum:
+                        clippedValues.append(aD.minimum)
+                    elif value > aD.maximum:
+                        clippedValues.append(aD.maximum)
+                    else:
+                        clippedValues.append(value)
+            if len(clippedValues)==1:
+                new[axisName] = clippedValues[0]
+            elif len(clippedValues)==2:
+                new[axisName] = tuple(clippedValues)
+        return new
+
     def filterThisLocation(self, location, mutedAxes=None):
         # return location with axes is mutedAxes removed
         # this means checking if the location is a non-default value
@@ -825,7 +900,7 @@ class UFOOperator(object):
             del new[mutedAxisName]
         return ignoreSource, new
 
-    # @memoize
+    @memoize
     def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
         """ Return a glyph mutator
             decomposeComponents = True causes the source glyphs to be decomposed first
@@ -954,6 +1029,8 @@ class UFOOperator(object):
         if doRules is not None:
             warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
         continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
+        if not self.extrapolate:
+            continuousLocation = self.clipThisLocation(continuousLocation)
         font = self._instantiateFont(None)
         loc = Location(continuousLocation)
         anisotropic = False
@@ -1126,7 +1203,7 @@ class UFOOperator(object):
                 workLocation[aD.name] = v
         return workLocation
 
-    @memoize
+    # @memoize
     def makeFontProportions(self, location, bend=False, roundGeometry=True):
         """Calculate the basic font proportions for this location, to map out expectations for drawing"""
         continuousLocation, discreteLocation = self.splitLocation(location)
@@ -1163,6 +1240,8 @@ class UFOOperator(object):
         Returns: a mathglyph, results are cached
         """
         continuousLocation, discreteLocation = self.splitLocation(location)
+        if not self.extrapolate:
+            continuousLocation = self.clipThisLocation(continuousLocation)
         # check if the discreteLocation is within limits
         if not self.checkDiscreteAxisValues(discreteLocation):
             if self.debug:
@@ -1302,3 +1381,6 @@ if __name__ == "__main__":
     print(doc.getFonts())
 
     print(doc.glyphsInCache())
+
+    print(doc.clipThisLocation(dict(width=(-1000, 2000))))
+    #print(doc.clipThisLocation(dict(optical=1, weight=5000)))    
