@@ -279,6 +279,10 @@ class UFOOperator(object):
     def locationLabels(self):
         return self.doc.locationLabels
 
+    @locationLabels.setter
+    def locationLabels(self, locationLabels):
+        self.doc.locationLabels = locationLabels
+
     @property
     def writerClass(self):
         return self.doc.writerClass
