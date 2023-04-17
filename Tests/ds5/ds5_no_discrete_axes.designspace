@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<designspace format="5.0">
+  <axes>
+    <axis tag="wdth" name="width" minimum="400" maximum="1000" default="400">
+      <map input="400" output="400"/>
+      <map input="700" output="900"/>
+      <map input="1000" output="1000"/>
+      <labels ordering="1"/>
+    </axis>
+  </axes>
+  <sources>
+    <source filename="sources/geometrySource_c_400_d1_1_d2_0.ufo" name="geometrySource400 1 0" familyname="SourceFamilyName" stylename="OneNarrowsolid">
+      <groups copy="1"/>
+      <features copy="1"/>
+      <info copy="1"/>
+      <location>
+        <dimension name="width" xvalue="400"/>
+      </location>
+    </source>
+    <source filename="sources/geometrySource_c_1000_d1_1_d2_0.ufo" name="geometrySource1000 1 0" familyname="SourceFamilyName" stylename="OneWidesolid">
+      <location>
+        <dimension name="width" xvalue="1000"/>
+      </location>
+    </source>
+  </sources>
+  <instances>
+    <instance name="geometryInstance One Wide Solid" familyname="InstanceFamilyName" stylename="OneWideSolid" filename="instances/geometryInstance_c_(400, 700)_d1_1_d2_0.ufo">
+      <location>
+        <dimension name="width" xvalue="400"/>
+      </location>
+    </instance>
+    <instance name="geometryInstance One Wide Open" familyname="InstanceFamilyName" stylename="OneWideOpen" filename="instances/geometryInstance_c_(400, 700)_d1_1_d2_1.ufo">
+      <location>
+        <dimension name="width" xvalue="700"/>
+      </location>
+    </instance>
+  </instances>
+  <lib>
+    <dict>
+      <key>com.letterror.mathModelPref</key>
+      <string>previewMutatorMath</string>
+      <key>com.letterror.skateboard.interactionSources</key>
+      <dict>
+        <key>horizontal</key>
+        <array>
+          <string>width</string>
+        </array>
+        <key>ignore</key>
+        <array/>
+        <key>vertical</key>
+        <array/>
+      </dict>
+      <key>com.letterror.skateboard.previewLocation</key>
+      <dict>
+        <key>width</key>
+        <real>790.9379266617385</real>
+      </dict>
+      <key>com.letterror.skateboard.previewText</key>
+      <string>SKATEBOARD</string>
+    </dict>
+  </lib>
+</designspace>
