@@ -217,6 +217,12 @@ class UFOOperator(object):
     def addAxisDescriptor(self, **kwargs):
         return self.doc.addAxisDescriptor(**kwargs)
 
+    def addRule(self, ruleDescriptor):
+        self.doc.addRule(ruleDescriptor)
+
+    def addRuleDescriptor(self, **kwargs):
+        return self.doc.addRuleDescriptor(**kwargs)
+
     def addSource(self, sourceDescriptor):
         self.doc.addSource(sourceDescriptor)
 
@@ -356,7 +362,7 @@ class UFOOperator(object):
             self.changed()
 
     def getFonts(self):
-        # returnn a list of (font object, location) tuples
+        # return a list of (font object, location) tuples
         fonts = []
         for sourceDescriptor in self.sources:
             f = self.fonts.get(sourceDescriptor.name)
@@ -367,7 +373,6 @@ class UFOOperator(object):
     def getCharacterMapping(self, discreteLocation=None):
         # return a unicode -> glyphname map for the default of the system or discreteLocation
         characterMap = {}
-        #for 
         defaultSourceDescriptor = self.findDefault(discreteLocation=discreteLocation)
         if not defaultSourceDescriptor: 
             print("no defaultSourceDescriptor")
@@ -440,6 +445,16 @@ class UFOOperator(object):
             if s.location == defaultDesignLocation:
                 return s
         return None
+
+    def findDefaultFont(self, discreteLocation=None):
+        # @@
+        # A system without discrete axes should be able to
+        # find a default here.
+        defaultSourceDescriptor = self.findDefault(discreteLocation=discreteLocation)
+        if defaultSourceDescriptor is None:
+            return None
+        # find the font now
+        return self.fonts.get(defaultSourceDescriptor.name, None)
 
     def splitLocation(self, location):
         # split a location in a continouous and a discrete part
