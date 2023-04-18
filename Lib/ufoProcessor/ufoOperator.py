@@ -27,6 +27,7 @@ from ufoProcessor.logger import Logger
 _memoizeCache = dict()
 _memoizeStats = dict()
 
+
 def ip(a, b, f):
     return a+f*(b-a)
 
@@ -293,6 +294,10 @@ class UFOOperator(object):
     @property
     def writerClass(self):
         return self.doc.writerClass
+
+    def nameLocation(self,loc):
+        # return a nicely formatted string for this location
+        return ",".join([f"{k}:{v}" for k, v in loc.items()])
 
     @formatVersion.setter
     def formatVersion(self, value):
@@ -1035,7 +1040,11 @@ class UFOOperator(object):
                     checkedItems.append(items[i])
         return checkedItems, unicodes
 
-    collectMastersForGlyph = collectSourcesForGlyph
+    def collectMastersForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
+        # compatibility thing for designspaceProblems.
+        checkedItems, unicodes = self.collectSourcesForGlyph(glyphName, decomposeComponents=False, discreteLocation=None)
+        return checkedItems
+
 
     def makeInstance(self, instanceDescriptor,
             doRules=None,
@@ -1386,7 +1395,7 @@ if __name__ == "__main__":
     print(doc.getReverseComponentMapping())
 
     # these are all the discrete locations in this designspace
-    print(doc.getDiscreteLocations())
+    print("getDiscreteLocations()", doc.getDiscreteLocations())
     for discreteLocation in doc.getDiscreteLocations():
         s = doc.findDefault(discreteLocation)
         print(f"default for discreteLocation {discreteLocation} {s}")
