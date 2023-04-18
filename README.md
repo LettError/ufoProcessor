@@ -4,30 +4,31 @@
 # ufoProcessor
 Python package based on the **designSpaceDocument** from [fontTools.designspaceLib](https://github.com/fonttools/fonttools/tree/master/Lib/fontTools/designspaceLib)) specifically to _process_ and _generate_ instances for UFO files, glyphs and other data.
 
+## UFOOperator takes over from UfoProcessor
+
+Some deep changes were necessary to support designspace format 5 files. Rather than try to work it into unwilling old code, UFOOperator is rewritten from the bottom up. The new object *wraps* the FontTools DesignSpaceDocument object, rather than *subclassing* it. The goals for UFOOperator remain largely the same. Though the emphasis is now on providing objects that provide live interpolation, rather than generate stand alone UFOs.
+
+* Support designspace format 5, with layers. *Not all elements of designspace 5 are supported.*
 * Collect source materials
 * Provide mutators for specific glyphs, font info, kerning so that other tools can generate partial instances. Either from `MutatorMath` or `fonttools varlib.model`.
-* Support designspace format 4 with layers.
+* Support anisotropic locations in both math models, even if Variable Fonts won't. These are super useful during design, so I need them to work.
+* Support extrapolation in both math models, even if Variable Fonts won't. Note that MutatorMath and VarLib approach extrapolation differently. Useful for design-explorations.
+* Support discrete axes. This is a bit complex, but it is nice when it works.
 * Apply avar-like designspace bending
-* Apply rules
-* Generate actual UFO instances in formats 2 and 3.
+* Generate actual UFO instances in formats 3.
 * Round geometry as requested
 * Try to stay up to date with fontTools
 * Baseclass for tools that need access to designspace data.
+* Some caching of MutatorMath and Varlib flavored mutators.
 
-## Usage
-The easiest way to use ufoProcessor is to call `build(designspacePath)`
+## No more rules
+UFOProcessor could execute *some* of the feature-variation rules when it generated UFOs. But these variations has become much more complex than can be faked with simple glyph-swapping. So I did not port that to UFOOperator. UFOs generated with UFOOperator will have all the glyphs in the same places as their sources.
 
-* **documentPath**: path to the designspace file.
-* **outputUFOFormatVersion**: integer, 2, 3. Format for generated UFOs. Note: can be different from source UFO format.
-* **roundGeometry**: bool, if the geometry needs to be rounded to whole integers. This affects glyphs, metrics, kerning, select font info.
-* **processRules**: bool, when generating UFOs, execute designspace rules as swaps.
-* **logger**: optional logger object.
+## Discrete axes
+A *discrete axis* is a way to fit different interpolating systems into a single designspace. For instance a *roman* could be on ```italic=0``` and the *italic* on ```italic=1```. The roman and italic are in the same file, but to UFOOperator they are separate systems that interpolate along the normal axes. If is are more than one discrete axis in a designspace, each combination of the axis values, each *discrete location* can be an interpolating system. So some of the methods of UFOOperator require a `discrete location` to know which interpolating system is needed. 
 
-* **documentPath**:               filepath to the .designspace document
-* **outputUFOFormatVersion**:     ufo format for output, default is the current, so 3.
-* **useVarlib**:                  True if you want the geometry to be generated with `varLib.model` instead of `mutatorMath`.
 
-## Examples
+## Examples UFOProcessor (old)
 
 Generate all the instances (using the varlib model, no rounding):
 
@@ -66,50 +67,3 @@ instance = glyphMutator.makeInstance(Location(width=100, weight=200)
 ```
 
 Depending on the setting for `usevarlib`, the `glyphMutator` object returned by `getGlyphMutator` in the example above can either be a `MutatorMath.Mutator`, or a `VariationModelMutator` object. That uses the `fontTools.varLib.models.VariationModel` but it is wrapped and can be called as a Mutator object to generate instances. This way `DesignSpaceProcessor` does not need to know much about which math model it is using.
-
-
-## Convert Superpolator to designspace
-
-The ufoProcessor.sp3 module has some tools for interpreting Superpolator .sp3 documents. Not all data is migrated. But the important geometry is there. Given that Superpolator can read designspace files, there is hopefully no real need for a writer. Note that this conversion is lossy. 
-
-* Axis
-	* dimensions
-	* name
-	* tag
-* Source
-	* ufo path
-	* familyname, stylename
-	* mute state (stored in lib)
-	* location
-* Instance
-	* ufo path
-	* familyname, stylename
-	* stylemap names
-	* location
-* Rules
-	* *Simple Rules* are wrapped in a conditionset.
-	* most of the really old Superpolator rules can't be converted. Only rules with `<` or `>` operators are used.
-* Some Superpolator user prefs
-	* Preview text
-	* Which axes used vertically and horizontally
-
-
-## Usage 
-```python
-# convert sp3 file to designspace
-# first make a new designspace doc object
-doc = DesignSpaceDocument()
-# feed it to the reader
-reader = SuperpolatorReader(sp3path, doc)
-reader.read()
-# now you can work with it, even save it
-doc.write(designspacePath)
-```
-Indeed that last example comes from this convenience function:  
-```sp3_to_designspace(sp3path, designspacePath=None)```
-If designspacePath = None, sp3_to_designspace will use the same path for the output, but replace the `.sp3` with `.designspace` extension. If the file exists it will overwrite.
-
-## Notes
-* Glyph-specific masters in instances are ignored.   
-* Instance notes are ignored. 
-* Designspace geometry requires the default master to be on the default value of each axis. Superpolator handled that differently, it would find the default dynamically. So it is possible that converted designspaces need some work in terms of the basic structure. That can't be handled automatically.

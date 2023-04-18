@@ -456,6 +456,8 @@ class UFOOperator(object):
         # find the font now
         return self.fonts.get(defaultSourceDescriptor.name, None)
 
+    getDefaultFont = findDefaultFont
+
     def splitLocation(self, location):
         # split a location in a continouous and a discrete part
         discreteAxes = [a.name for a in self.getOrderedDiscreteAxes()]
@@ -1399,3 +1401,10 @@ if __name__ == "__main__":
 
     print(doc.clipThisLocation(dict(width=(-1000, 2000))))
     #print(doc.clipThisLocation(dict(optical=1, weight=5000)))    
+
+    print('newDefaultLocation()', doc.newDefaultLocation(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}))
+    print('newDefaultLocation()', doc.newDefaultLocation())
+    print("findDefaultFont()", doc.findDefaultFont().path)
+    print("findDefaultFont()", doc.findDefaultFont(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}).path)    
+    print("getDefaultFont()", doc.getDefaultFont().path)
+    print("getDefaultFont()", doc.getDefaultFont(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}).path)    
