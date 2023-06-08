@@ -1409,11 +1409,11 @@ if __name__ == "__main__":
     print(doc.glyphsInCache())
 
     print(doc.clipThisLocation(dict(width=(-1000, 2000))))
-    #print(doc.clipThisLocation(dict(optical=1, weight=5000)))    
+    #print(doc.clipThisLocation(dict(optical=1, weight=5000)))
 
     print('newDefaultLocation()', doc.newDefaultLocation(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}))
     print('newDefaultLocation()', doc.newDefaultLocation())
     print("findDefaultFont()", doc.findDefaultFont().path)
-    print("findDefaultFont()", doc.findDefaultFont(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}).path)    
+    print("findDefaultFont()", doc.findDefaultFont(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}).path)
     print("getNeutralFont()", doc.getNeutralFont().path)
-    print("getNeutralFont()", doc.getNeutralFont(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}).path)    
+    print("getNeutralFont()", doc.getNeutralFont(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}).path)
