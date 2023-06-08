@@ -145,13 +145,14 @@ class UFOOperator(object):
     mathGlyphClass = MathGlyph
     mathKerningClass = MathKerning
 
-    def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, extrapolate=False, debug=False):
+    def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, extrapolate=False, strict=False, debug=False):
         self.ufoVersion = ufoVersion
         self.useVarlib = useVarlib
         self._fontsLoaded = False
         self.fonts = {}
         self.roundGeometry = False
         self.mutedAxisNames = None    # list of axisname that need to be muted
+        self.strict = strict
         self.debug = debug
         self.logger = None
         self.extrapolate = extrapolate  # if true allow extrapolation
@@ -379,7 +380,7 @@ class UFOOperator(object):
         # return a unicode -> glyphname map for the default of the system or discreteLocation
         characterMap = {}
         defaultSourceDescriptor = self.findDefault(discreteLocation=discreteLocation)
-        if not defaultSourceDescriptor: 
+        if not defaultSourceDescriptor:
             print("no defaultSourceDescriptor")
             return {}
         defaultFont = self.fonts.get(defaultSourceDescriptor.name)
@@ -825,9 +826,9 @@ class UFOOperator(object):
             if hasattr(b, "toMathGlyph"):
                 # note: calling toMathGlyph ignores the mathGlyphClass preference
                 # maybe the self.mathGlyphClass is not necessary?
-                new.append((a, b.toMathGlyph()))
+                new.append((a, b.toMathGlyph(strict=self.strict)))
             else:
-                new.append((a, self.mathGlyphClass(b)))
+                new.append((a, self.mathGlyphClass(b, strict=self.strict)))
         thing = None
         thisBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
         try:
@@ -1010,9 +1011,9 @@ class UFOOperator(object):
                 sourceName=sourceDescriptor.name,
             )
             if hasattr(processThis, "toMathGlyph"):
-                processThis = processThis.toMathGlyph()
+                processThis = processThis.toMathGlyph(strict=self.strict)
             else:
-                processThis = self.mathGlyphClass(processThis)
+                processThis = self.mathGlyphClass(processThis, strict=self.strict)
             continuous, discrete = self.splitLocation(loc)
             items.append((continuous, processThis, sourceInfo))
             empties.append((thisIsDefault, foundEmpty))
