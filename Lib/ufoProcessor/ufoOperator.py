@@ -8,7 +8,7 @@ from warnings import warn
 import collections
 import traceback
 
-from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+from fontTools.designspaceLib import DesignSpaceDocument, processRules
 from fontTools.ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
 from fontTools.misc import plistlib
 
