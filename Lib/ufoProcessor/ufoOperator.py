@@ -704,10 +704,10 @@ class UFOOperator(object):
                 return reverseComponentMapping
         return {}
 
-    def generateUFOs(self, useVarLib=None):
+    def generateUFOs(self, useVarlib=None):
         # generate an UFO for each of the instance locations
         previousModel = self.useVarlib
-        if useVarLib is not None:
+        if useVarlib is not None:
             self.useVarlib = useVarlib
         glyphCount = 0
         self.loadFonts()
