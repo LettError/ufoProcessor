@@ -237,6 +237,12 @@ class UFOOperator(object):
     def addInstanceDescriptor(self, **kwargs):
         return self.doc.addInstanceDescriptor(**kwargs)
 
+    def addVariableFont(self, variableFontDescriptor):
+        self.doc.addVariableFont(variableFontDescriptor)
+
+    def addVariableFontDescriptor(self, **kwargs):
+        return self.doc.addVariableFontDescriptor(**kwargs)
+
     def getVariableFonts(self):
         return self.doc.getVariableFonts()
 
@@ -293,10 +299,14 @@ class UFOOperator(object):
         self.doc.locationLabels = locationLabels
 
     @property
+    def variableFonts(self):
+        return self.doc.variableFonts
+
+    @property
     def writerClass(self):
         return self.doc.writerClass
 
-    def nameLocation(self,loc):
+    def nameLocation(self, loc):
         # return a nicely formatted string for this location
         return ",".join([f"{k}:{v}" for k, v in loc.items()])
 
