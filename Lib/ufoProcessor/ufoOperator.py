@@ -1056,7 +1056,6 @@ class UFOOperator(object):
         checkedItems, unicodes = self.collectSourcesForGlyph(glyphName, decomposeComponents=False, discreteLocation=None)
         return checkedItems
 
-
     def makeInstance(self, instanceDescriptor,
             doRules=None,
             glyphNames=None,
@@ -1066,6 +1065,12 @@ class UFOOperator(object):
         if doRules is not None:
             warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
         continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
+        if bend:
+            # if we are bending, there is a map.
+            # if there is a map, the user space coordinate will differ from
+            # the designspace coordinate. Therefor, we need to map the
+            # location we have to designspace value.
+            continuousLocation = self.doc.map_backward(continuousLocation)
         if not self.extrapolate:
             continuousLocation = self.clipThisLocation(continuousLocation)
         font = self._instantiateFont(None)
@@ -1275,8 +1280,19 @@ class UFOOperator(object):
         + Supports anisotropic locations for varlib and mutatormath. Obviously this will not be present in any Variable font exports.
 
         Returns: a mathglyph, results are cached
+
+        Issue: 
+        the location can be user space. So, it needs to be mapped.
+            print(item.getFullUserLocation(doc=operator))
+
         """
         continuousLocation, discreteLocation = self.splitLocation(location)
+        if bend:
+            # if we are bending, there is a map.
+            # if there is a map, the user space coordinate will differ from
+            # the designspace coordinate. Therefor, we need to map the
+            # location we have to designspace value.
+            continuousLocation = self.doc.map_backward(continuousLocation)
         if not self.extrapolate:
             continuousLocation = self.clipThisLocation(continuousLocation)
         # check if the discreteLocation is within limits
