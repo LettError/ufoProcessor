@@ -59,7 +59,7 @@ class VariationModelMutator(object):
 
     def __init__(self, items, axes, model=None, extrapolate=True):
         # items: list of locationdict, value tuples
-        # axes: list of axis dictionaried, not axisdescriptor objects.
+        # axes: list of axis dictionaries, not axisdescriptor objects.
         # model: a model, if we want to share one
         self.extrapolate = extrapolate
         self.axisOrder = [a.name for a in axes]

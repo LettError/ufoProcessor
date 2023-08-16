@@ -842,7 +842,8 @@ class UFOOperator(object):
         thing = None
         thisBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
         try:
-            bias, thing = self.getVariationModel(new, axes=self.getSerializedAxes(), bias=thisBias)  # xx
+            serializedAxes = self.getSerializedAxes()
+            bias, thing = self.getVariationModel(new, axes=serializedAxes, bias=thisBias)  # xx
         except Exception:
             error = traceback.format_exc()
             note = f"Error in getGlyphMutator for {glyphName}:\n{error}"
@@ -868,23 +869,23 @@ class UFOOperator(object):
             axes[aD.name] = aD
         return axes
 
-    def clipThisLocation(self, location):
-        # return a copy of the location without extrapolation
+    def clipDesignLocation(self, location):
+        # return a copy of the design location without extrapolation
+        # assume location is in designspace coordinates.
+        # use map_forward on axis extremes,
         axesByName = self.axesByName()
-        #print('axesByName', axesByName)
         new = {}
         for axisName, value in location.items():
             aD = axesByName.get(axisName)
-            #print(aD, axisName, location)
             clippedValues = []
             if type(value) == tuple:
                 testValues = list(value)
             else:
                 testValues = [value]
-            #print("testValues", testValues)
             for value in testValues:
                 if hasattr(aD, "values"):
                     # a discrete axis
+                    # will there be mapped discrete values?
                     mx = max(aD.values)
                     mn = min(aD.values)
                     if value in aD.values:
@@ -900,10 +901,12 @@ class UFOOperator(object):
                         clippedValues.append(value)
                 else:
                     # a continuous axis
-                    if value < aD.minimum:
-                        clippedValues.append(aD.minimum)
-                    elif value > aD.maximum:
-                        clippedValues.append(aD.maximum)
+                    aD_minimum = aD.map_forward(aD.minimum)
+                    aD_maximum = aD.map_forward(aD.maximum)
+                    if value < aD_minimum:
+                        clippedValues.append(aD_minimum)
+                    elif value > aD_maximum:
+                        clippedValues.append(aD_maximum)
                     else:
                         clippedValues.append(value)
             if len(clippedValues)==1:
@@ -1065,14 +1068,9 @@ class UFOOperator(object):
         if doRules is not None:
             warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
         continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
-        if bend:
-            # if we are bending, there is a map.
-            # if there is a map, the user space coordinate will differ from
-            # the designspace coordinate. Therefor, we need to map the
-            # location we have to designspace value.
-            continuousLocation = self.doc.map_backward(continuousLocation)
         if not self.extrapolate:
-            continuousLocation = self.clipThisLocation(continuousLocation)
+            # Axis values are in userspace, so this needs to happen before bending
+            continuousLocation = self.clipDesignLocation(continuousLocation)
         font = self._instantiateFont(None)
         loc = Location(continuousLocation)
         anisotropic = False
@@ -1266,11 +1264,10 @@ class UFOOperator(object):
         data = dict(unitsPerEm=infoInstanceObject.unitsPerEm, ascender=infoInstanceObject.ascender, descender=infoInstanceObject.descender, xHeight=infoInstanceObject.xHeight)
         return data
 
-    def makeOneGlyph(self, glyphName, location, bend=False, decomposeComponents=True, useVarlib=False, roundGeometry=False, clip=False):
+    def makeOneGlyph(self, glyphName, location, decomposeComponents=True, useVarlib=False, roundGeometry=False, clip=False):
         """
         glyphName:
-        location: location including discrete axes
-        bend: apply axis transformations
+        location: location including discrete axes, in **designspace** coordinates.
         decomposeComponents: decompose all components so we get a proper representation of the shape
         useVarlib: use varlib as mathmodel. Otherwise it is mutatorMath
         roundGeometry: round all geometry to integers
@@ -1280,21 +1277,13 @@ class UFOOperator(object):
         + Supports anisotropic locations for varlib and mutatormath. Obviously this will not be present in any Variable font exports.
 
         Returns: a mathglyph, results are cached
-
-        Issue: 
-        the location can be user space. So, it needs to be mapped.
-            print(item.getFullUserLocation(doc=operator))
-
         """
         continuousLocation, discreteLocation = self.splitLocation(location)
-        if bend:
-            # if we are bending, there is a map.
-            # if there is a map, the user space coordinate will differ from
-            # the designspace coordinate. Therefor, we need to map the
-            # location we have to designspace value.
-            continuousLocation = self.doc.map_backward(continuousLocation)
+
+        bend=False  #
         if not self.extrapolate:
-            continuousLocation = self.clipThisLocation(continuousLocation)
+            # Axis values are in userspace, so this needs to happen *after* clipping.
+            continuousLocation = self.clipDesignLocation(continuousLocation)
         # check if the discreteLocation is within limits
         if not self.checkDiscreteAxisValues(discreteLocation):
             if self.debug:
@@ -1435,8 +1424,7 @@ if __name__ == "__main__":
 
     print(doc.glyphsInCache())
 
-    print(doc.clipThisLocation(dict(width=(-1000, 2000))))
-    #print(doc.clipThisLocation(dict(optical=1, weight=5000)))
+    print(doc.clipDesignLocation(dict(width=(-1000, 2000))))
 
     print('newDefaultLocation()', doc.newDefaultLocation(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}))
     print('newDefaultLocation()', doc.newDefaultLocation())
