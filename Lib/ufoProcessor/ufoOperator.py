@@ -1438,3 +1438,14 @@ if __name__ == "__main__":
     print("findDefaultFont()", doc.findDefaultFont(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}).path)
     print("getNeutralFont()", doc.getNeutralFont().path)
     print("getNeutralFont()", doc.getNeutralFont(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}).path)
+
+    # generate instances with a limited set of decomposed glyphs
+    # (useful for quick previews)
+    glyph_names = ["glyphTwo"]
+    for instanceDescriptor in doc.instances:
+        instance = doc.makeInstance(instanceDescriptor, glyphNames=glyph_names, decomposeComponents=True)
+        print(f"Generated instance at {instanceDescriptor.location} with decomposed partial glyph set: {','.join(instance.keys())}")
+        for name in glyph_names:
+            glyph = instance[name]
+            print(f"- {glyph.name} countours:{len(glyph)}, components: {len(glyph.components)}")
+        print()
