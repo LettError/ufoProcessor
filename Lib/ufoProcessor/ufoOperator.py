@@ -361,19 +361,23 @@ class UFOOperator(object):
         # self.fonts[sourceDescriptor.name] = None
         hasUpdated = False
         for newFont in fontObjects:
-            for fontName, haveFont in self.fonts.items():
-                # XX what happens here when the font did not load?
-                # haveFont will be None. Scenario: font initially missing, then added.
-                if haveFont is None:
-                    self.fonts[fontName] = newFont
-                    hasUpdated = True
-                if haveFont.path == newFont.path and haveFont is newFont:
-                    note = f"## updating source {self.fonts[fontName]} with {newFont}"
-                    if self.debug:
-                        self.logger.time()
-                        self.logger.info(note)
-                    self.fonts[fontName] = newFont
-                    hasUpdated = True
+            # XX can we update font objects which arent stored on disk?
+            if newFont.path is not None:
+                for fontName, haveFont in self.fonts.items():
+                    # XX what happens here when the font did not load?
+                    # haveFont will be None. Scenario: font initially missing, then added.
+                    if haveFont is None:
+                        if self.debug:
+                            self.logger.time()
+                            self.logger.info(f"## updating unloaded source {fontName} with {newFont}")
+                        self.fonts[fontName] = newFont
+                        hasUpdated = True
+                    elif haveFont.path == newFont.path:
+                        if self.debug:
+                            self.logger.time()
+                            self.logger.info(f"## updating source {self.fonts[fontName]} with {newFont}")
+                        self.fonts[fontName] = newFont
+                        hasUpdated = True
         if hasUpdated:
             self.changed()
 
