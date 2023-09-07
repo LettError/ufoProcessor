@@ -738,6 +738,7 @@ class UFOOperator(object):
                 instanceDescriptor,
                 processRules,
                 glyphNames=self.glyphNames,
+                decomposeComponents=False,
                 pairs=pairs,
                 bend=bend,
             )
@@ -1066,6 +1067,7 @@ class UFOOperator(object):
     def makeInstance(self, instanceDescriptor,
             doRules=None,
             glyphNames=None,
+            decomposeComponents=False,
             pairs=None,
             bend=False):
         """ Generate a font object for this instance """
@@ -1146,6 +1148,10 @@ class UFOOperator(object):
         if glyphNames:
             selectedGlyphNames = glyphNames
         else:
+            # since all glyphs are processed, decomposing components is unecessary
+            # maybe that's confusing and components should be decomposed anyway 
+            # if decomposeComponents was set to True?
+            decomposeComponents = False
             selectedGlyphNames = self.glyphNames
         if 'public.glyphOrder' not in font.lib.keys():
             # should be the glyphorder from the default, yes?
@@ -1153,7 +1159,7 @@ class UFOOperator(object):
 
         for glyphName in selectedGlyphNames:
             # can we take all this into a separate method for making a preview glyph object?
-            glyphMutator, unicodes = self.getGlyphMutator(glyphName, discreteLocation=discreteLocation)
+            glyphMutator, unicodes = self.getGlyphMutator(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
             if glyphMutator is None:
                 if self.debug:
                     note = f"makeInstance: Could not make mutator for glyph {glyphName}"
@@ -1436,3 +1442,14 @@ if __name__ == "__main__":
     print("findDefaultFont()", doc.findDefaultFont(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}).path)
     print("getNeutralFont()", doc.getNeutralFont().path)
     print("getNeutralFont()", doc.getNeutralFont(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}).path)
+
+    # generate instances with a limited set of decomposed glyphs
+    # (useful for quick previews)
+    glyph_names = ["glyphTwo"]
+    for instanceDescriptor in doc.instances:
+        instance = doc.makeInstance(instanceDescriptor, glyphNames=glyph_names, decomposeComponents=True)
+        print(f"Generated instance at {instanceDescriptor.location} with decomposed partial glyph set: {','.join(instance.keys())}")
+        for name in glyph_names:
+            glyph = instance[name]
+            print(f"- {glyph.name} countours:{len(glyph)}, components: {len(glyph.components)}")
+        print()
