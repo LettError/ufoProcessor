@@ -428,13 +428,12 @@ class UFOOperator(object):
             because they can have different constructions."""
         changedNames = set()
         changedNames.add(glyphName)
+        
         if includeDependencies:
-            for discreteLocation in self.getDiscreteLocations():
-                reverseComponentMap = self.getReverseComponentMapping()
-                if glyphName not in reverseComponentMap:
-                    continue
-                for compName in reverseComponentMap[glyphName]:
-                    changedNames.add(compName)
+            dependencies = self.getGlyphDependencies(glyphName)
+            if dependencies:
+                changedNames.update(dependencies)
+
         remove = []
         for key in list(_memoizeCache.keys()):
             # the glyphname is hiding quite deep in key[2]
@@ -446,6 +445,17 @@ class UFOOperator(object):
             del _memoizeCache[key]
             if key in _memoizeStats:
                 del _memoizeStats[key]
+
+    def getGlyphDependencies(self, glyphName):
+        dependencies = set()
+        for discreteLocation in self.getDiscreteLocations():
+            # this is expensive, should it be cached?
+            reverseComponentMap = self.getReverseComponentMapping()
+            if glyphName not in reverseComponentMap:
+                return None
+            for compName in reverseComponentMap[glyphName]:
+                dependencies.add(compName)
+        return dependencies
 
     def glyphsInCache(self):
         """report which glyphs are in the cache at the moment"""
@@ -1453,3 +1463,8 @@ if __name__ == "__main__":
             glyph = instance[name]
             print(f"- {glyph.name} countours:{len(glyph)}, components: {len(glyph.components)}")
         print()
+
+    # component related dependencies
+    glyphName = "glyphOne"
+    dependencies = doc.getGlyphDependencies(glyphName)
+    print(f"{glyphName} dependencies: {dependencies}")
