@@ -9,6 +9,7 @@ import collections
 import traceback
 
 from fontTools.designspaceLib import DesignSpaceDocument, processRules
+from fontTools.designspaceLib.split import splitInterpolable, splitVariableFonts
 from fontTools.ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
 from fontTools.misc import plistlib
 
@@ -245,6 +246,29 @@ class UFOOperator(object):
 
     def getVariableFonts(self):
         return self.doc.getVariableFonts()
+
+    def getInterpolableUFOOperators(self, useVariableFonts=True):
+        if useVariableFonts:
+            splitFunction = splitVariableFonts
+        else:
+            splitFunction = splitInterpolable
+        for discreteLocationOrName, interpolableDesignspace in splitFunction(self.doc):
+            if isinstance(discreteLocationOrName, dict):
+                basename = ""
+                if self.doc.filename is not None:
+                    basename = os.path.splitext(self.doc.filename)[0]
+                elif self.doc.path is not None:
+                    basename = os.path.splitext(os.path.basename(self.doc.path))[0]
+                discreteLocationOrName = basename + "-".join([f"{key}_{value:g}" for key, value in discreteLocationOrName.items()])
+
+            yield discreteLocationOrName, self.__class__(
+                interpolableDesignspace,
+                ufoVersion=self.ufoVersion,
+                useVarlib=self.useVarlib,
+                extrapolate=self.extrapolate,
+                strict=self.strict,
+                debug=self.debug
+            )
 
     @property
     def path(self):
@@ -540,9 +564,10 @@ class UFOOperator(object):
         for axis in self.getOrderedDiscreteAxes():
             values.append(axis.values)
             names.append(axis.name)
-        for r in itertools.product(*values):
-            # make a small dict for the discrete location values
-            discreteCoordinates.append({a: b for a, b in zip(names, r)})
+        if values:
+            for r in itertools.product(*values):
+                # make a small dict for the discrete location values
+                discreteCoordinates.append({a: b for a, b in zip(names, r)})
         return discreteCoordinates
 
     def getOrderedDiscreteAxes(self):
@@ -1149,7 +1174,7 @@ class UFOOperator(object):
             selectedGlyphNames = glyphNames
         else:
             # since all glyphs are processed, decomposing components is unecessary
-            # maybe that's confusing and components should be decomposed anyway 
+            # maybe that's confusing and components should be decomposed anyway
             # if decomposeComponents was set to True?
             decomposeComponents = False
             selectedGlyphNames = self.glyphNames
