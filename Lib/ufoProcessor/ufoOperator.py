@@ -452,7 +452,7 @@ class UFOOperator(object):
             because they can have different constructions."""
         changedNames = set()
         changedNames.add(glyphName)
-        
+
         if includeDependencies:
             dependencies = self.getGlyphDependencies(glyphName)
             if dependencies:
@@ -771,7 +771,7 @@ class UFOOperator(object):
             bend = False
             font = self.makeInstance(
                 instanceDescriptor,
-                processRules,
+                # processRules,
                 glyphNames=self.glyphNames,
                 decomposeComponents=False,
                 pairs=pairs,
