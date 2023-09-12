@@ -113,84 +113,84 @@
     </variable-font>
   </variable-fonts>
   <instances>
-    <instance name="geometryInstance One Wide Solid" familyname="InstanceFamilyName" stylename="OneWideSolid" filename="instances/geometryInstance_c_(400, 700)_d1_1_d2_0.ufo">
+    <instance name="geometryInstance One Wide Solid" familyname="InstanceFamilyName" stylename="OneWideSolid-anisotropic" filename="instances/geometryInstance_c_(400, 700)_d1_1_d2_0.ufo">
       <location>
         <dimension name="width" xvalue="400" yvalue="700"/>
         <dimension name="countedItems" xvalue="1"/>
         <dimension name="outlined" xvalue="0"/>
       </location>
     </instance>
-    <instance name="geometryInstance One Wide Open" familyname="InstanceFamilyName" stylename="OneWideOpen" filename="instances/geometryInstance_c_(400, 700)_d1_1_d2_1.ufo">
+    <instance name="geometryInstance One Wide Open" familyname="InstanceFamilyName" stylename="OneWideOpen-anisotropic" filename="instances/geometryInstance_c_(400, 700)_d1_1_d2_1.ufo">
       <location>
         <dimension name="width" xvalue="400" yvalue="700"/>
         <dimension name="countedItems" xvalue="1"/>
         <dimension name="outlined" xvalue="1"/>
       </location>
     </instance>
-    <instance name="geometryInstance Two Wide Solid" familyname="InstanceFamilyName" stylename="TwoWideSolid" filename="instances/geometryInstance_c_(400, 700)_d1_2_d2_0.ufo">
+    <instance name="geometryInstance Two Wide Solid" familyname="InstanceFamilyName" stylename="TwoWideSolid-anisotropic" filename="instances/geometryInstance_c_(400, 700)_d1_2_d2_0.ufo">
       <location>
         <dimension name="width" xvalue="400" yvalue="700"/>
         <dimension name="countedItems" xvalue="2"/>
         <dimension name="outlined" xvalue="0"/>
       </location>
     </instance>
-    <instance name="geometryInstance Two Wide Open" familyname="InstanceFamilyName" stylename="TwoWideOpen" filename="instances/geometryInstance_c_(400, 700)_d1_2_d2_1.ufo">
+    <instance name="geometryInstance Two Wide Open" familyname="InstanceFamilyName" stylename="TwoWideOpen-anisotropic" filename="instances/geometryInstance_c_(400, 700)_d1_2_d2_1.ufo">
       <location>
         <dimension name="width" xvalue="400" yvalue="700"/>
         <dimension name="countedItems" xvalue="2"/>
         <dimension name="outlined" xvalue="1"/>
       </location>
     </instance>
-    <instance name="geometryInstance Three Wide Solid" familyname="InstanceFamilyName" stylename="ThreeWideSolid" filename="instances/geometryInstance_c_(400, 700)_d1_3_d2_0.ufo">
+    <instance name="geometryInstance Three Wide Solid" familyname="InstanceFamilyName" stylename="ThreeWideSolid-anisotropic" filename="instances/geometryInstance_c_(400, 700)_d1_3_d2_0.ufo">
       <location>
         <dimension name="width" xvalue="400" yvalue="700"/>
         <dimension name="countedItems" xvalue="3"/>
         <dimension name="outlined" xvalue="0"/>
       </location>
     </instance>
-    <instance name="geometryInstance Three Wide Open" familyname="InstanceFamilyName" stylename="ThreeWideOpen" filename="instances/geometryInstance_c_(400, 700)_d1_3_d2_1.ufo">
+    <instance name="geometryInstance Three Wide Open" familyname="InstanceFamilyName" stylename="ThreeWideOpen-anisotropic" filename="instances/geometryInstance_c_(400, 700)_d1_3_d2_1.ufo">
       <location>
         <dimension name="width" xvalue="400" yvalue="700"/>
         <dimension name="countedItems" xvalue="3"/>
         <dimension name="outlined" xvalue="1"/>
       </location>
     </instance>
-    <instance name="geometryInstance One Wide Solid" familyname="InstanceFamilyName" stylename="OneWideSolid" filename="instances/geometryInstance_c_300_d1_1_d2_0.ufo">
+    <instance name="geometryInstance One Wide Solid" familyname="InstanceFamilyName" stylename="OneWideSolid-extrapolate" filename="instances/geometryInstance_c_300_d1_1_d2_0.ufo">
       <location>
         <dimension name="width" xvalue="300"/>
         <dimension name="countedItems" xvalue="1"/>
         <dimension name="outlined" xvalue="0"/>
       </location>
     </instance>
-    <instance name="geometryInstance One Wide Open" familyname="InstanceFamilyName" stylename="OneWideOpen" filename="instances/geometryInstance_c_300_d1_1_d2_1.ufo">
+    <instance name="geometryInstance One Wide Open" familyname="InstanceFamilyName" stylename="OneWideOpen-extrapolate" filename="instances/geometryInstance_c_300_d1_1_d2_1.ufo">
       <location>
         <dimension name="width" xvalue="300"/>
         <dimension name="countedItems" xvalue="1"/>
         <dimension name="outlined" xvalue="1"/>
       </location>
     </instance>
-    <instance name="geometryInstance Two Wide Solid" familyname="InstanceFamilyName" stylename="TwoWideSolid" filename="instances/geometryInstance_c_300_d1_2_d2_0.ufo">
+    <instance name="geometryInstance Two Wide Solid" familyname="InstanceFamilyName" stylename="TwoWideSolid-extrapolate" filename="instances/geometryInstance_c_300_d1_2_d2_0.ufo">
       <location>
         <dimension name="width" xvalue="300"/>
         <dimension name="countedItems" xvalue="2"/>
         <dimension name="outlined" xvalue="0"/>
       </location>
     </instance>
-    <instance name="geometryInstance Two Wide Open" familyname="InstanceFamilyName" stylename="TwoWideOpen" filename="instances/geometryInstance_c_300_d1_2_d2_1.ufo">
+    <instance name="geometryInstance Two Wide Open" familyname="InstanceFamilyName" stylename="TwoWideOpen-extrapolate" filename="instances/geometryInstance_c_300_d1_2_d2_1.ufo">
       <location>
         <dimension name="width" xvalue="300"/>
         <dimension name="countedItems" xvalue="2"/>
         <dimension name="outlined" xvalue="1"/>
       </location>
     </instance>
-    <instance name="geometryInstance Three Wide Solid" familyname="InstanceFamilyName" stylename="ThreeWideSolid" filename="instances/geometryInstance_c_300_d1_3_d2_0.ufo">
+    <instance name="geometryInstance Three Wide Solid" familyname="InstanceFamilyName" stylename="ThreeWideSolid-extrapolate" filename="instances/geometryInstance_c_300_d1_3_d2_0.ufo">
       <location>
         <dimension name="width" xvalue="300"/>
         <dimension name="countedItems" xvalue="3"/>
         <dimension name="outlined" xvalue="0"/>
       </location>
     </instance>
-    <instance name="geometryInstance Three Wide Open" familyname="InstanceFamilyName" stylename="ThreeWideOpen" filename="instances/geometryInstance_c_300_d1_3_d2_1.ufo">
+    <instance name="geometryInstance Three Wide Open" familyname="InstanceFamilyName" stylename="ThreeWideOpen-extrapolate" filename="instances/geometryInstance_c_300_d1_3_d2_1.ufo">
       <location>
         <dimension name="width" xvalue="300"/>
         <dimension name="countedItems" xvalue="3"/>
@@ -365,42 +365,42 @@
         <dimension name="outlined" xvalue="1"/>
       </location>
     </instance>
-    <instance name="geometryInstance One Wide Solid" familyname="InstanceFamilyName" stylename="OneWideSolid" filename="instances/geometryInstance_c_1100_d1_1_d2_0.ufo">
+    <instance name="geometryInstance One Wide Solid" familyname="InstanceFamilyName" stylename="OneWideSolid-extrapolate" filename="instances/geometryInstance_c_1100_d1_1_d2_0.ufo">
       <location>
         <dimension name="width" xvalue="1100"/>
         <dimension name="countedItems" xvalue="1"/>
         <dimension name="outlined" xvalue="0"/>
       </location>
     </instance>
-    <instance name="geometryInstance One Wide Open" familyname="InstanceFamilyName" stylename="OneWideOpen" filename="instances/geometryInstance_c_1100_d1_1_d2_1.ufo">
+    <instance name="geometryInstance One Wide Open" familyname="InstanceFamilyName" stylename="OneWideOpen-extrapolate" filename="instances/geometryInstance_c_1100_d1_1_d2_1.ufo">
       <location>
         <dimension name="width" xvalue="1100"/>
         <dimension name="countedItems" xvalue="1"/>
         <dimension name="outlined" xvalue="1"/>
       </location>
     </instance>
-    <instance name="geometryInstance Two Wide Solid" familyname="InstanceFamilyName" stylename="TwoWideSolid" filename="instances/geometryInstance_c_1100_d1_2_d2_0.ufo">
+    <instance name="geometryInstance Two Wide Solid" familyname="InstanceFamilyName" stylename="TwoWideSolid-extrapolate" filename="instances/geometryInstance_c_1100_d1_2_d2_0.ufo">
       <location>
         <dimension name="width" xvalue="1100"/>
         <dimension name="countedItems" xvalue="2"/>
         <dimension name="outlined" xvalue="0"/>
       </location>
     </instance>
-    <instance name="geometryInstance Two Wide Open" familyname="InstanceFamilyName" stylename="TwoWideOpen" filename="instances/geometryInstance_c_1100_d1_2_d2_1.ufo">
+    <instance name="geometryInstance Two Wide Open" familyname="InstanceFamilyName" stylename="TwoWideOpen-extrapolate" filename="instances/geometryInstance_c_1100_d1_2_d2_1.ufo">
       <location>
         <dimension name="width" xvalue="1100"/>
         <dimension name="countedItems" xvalue="2"/>
         <dimension name="outlined" xvalue="1"/>
       </location>
     </instance>
-    <instance name="geometryInstance Three Wide Solid" familyname="InstanceFamilyName" stylename="ThreeWideSolid" filename="instances/geometryInstance_c_1100_d1_3_d2_0.ufo">
+    <instance name="geometryInstance Three Wide Solid" familyname="InstanceFamilyName" stylename="ThreeWideSolid-extrapolate" filename="instances/geometryInstance_c_1100_d1_3_d2_0.ufo">
       <location>
         <dimension name="width" xvalue="1100"/>
         <dimension name="countedItems" xvalue="3"/>
         <dimension name="outlined" xvalue="0"/>
       </location>
     </instance>
-    <instance name="geometryInstance Three Wide Open" familyname="InstanceFamilyName" stylename="ThreeWideOpen" filename="instances/geometryInstance_c_1100_d1_3_d2_1.ufo">
+    <instance name="geometryInstance Three Wide Open" familyname="InstanceFamilyName" stylename="ThreeWideOpen-extrapolate" filename="instances/geometryInstance_c_1100_d1_3_d2_1.ufo">
       <location>
         <dimension name="width" xvalue="1100"/>
         <dimension name="countedItems" xvalue="3"/>

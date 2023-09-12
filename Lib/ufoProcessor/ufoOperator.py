@@ -1099,6 +1099,24 @@ class UFOOperator(object):
         checkedItems, unicodes = self.collectSourcesForGlyph(glyphName, decomposeComponents=False, discreteLocation=None)
         return checkedItems
 
+    def getLocationType(self, location):
+        """Determine the type of the location:
+        continuous / discrete
+        anisotropic / normal. 
+        """
+        continuousLocation, discreteLocation = self.splitLocation(location)
+        if not self.extrapolate:
+            # Axis values are in userspace, so this needs to happen before bending
+            continuousLocation = self.clipDesignLocation(continuousLocation)
+        #font = self._instantiateFont(None)
+        loc = Location(continuousLocation)
+        anisotropic = False
+        locHorizontal = locVertical = loc
+        if self.isAnisotropic(loc):
+            anisotropic = True
+            locHorizontal, locVertical = self.splitAnisotropic(loc)
+        return anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical
+
     def makeInstance(self, instanceDescriptor,
             doRules=None,
             glyphNames=None,
@@ -1108,10 +1126,13 @@ class UFOOperator(object):
         """ Generate a font object for this instance """
         if doRules is not None:
             warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
-        continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
-        if not self.extrapolate:
-            # Axis values are in userspace, so this needs to happen before bending
-            continuousLocation = self.clipDesignLocation(continuousLocation)
+        anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(instanceDescriptor.location)
+
+        #continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
+        #if not self.extrapolate:
+        #    # Axis values are in userspace, so this needs to happen before bending
+        #    continuousLocation = self.clipDesignLocation(continuousLocation)
+
         font = self._instantiateFont(None)
         loc = Location(continuousLocation)
         anisotropic = False
@@ -1120,43 +1141,22 @@ class UFOOperator(object):
             anisotropic = True
             locHorizontal, locVertical = self.splitAnisotropic(loc)
             if self.debug:
-                self.logger.info(f"\t\t\tAnisotropic location for {instanceDescriptor.name}\n\t\t\t{instanceDescriptor.location}")
+                self.logger.info(f"\t\t\tAnisotropic location for \"{instanceDescriptor.name}\"\n\t\t\t{instanceDescriptor.location}")
+        # @@ makeOneKerning
         if instanceDescriptor.kerning:
-            if pairs:
-                try:
-                    kerningMutator = self.getKerningMutator(pairs=pairs, discreteLocation=discreteLocation)
-                    kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
-                    kerningObject.extractKerning(font)
-                except Exception:
-                    note = f"makeInstance: Could not make kerning for {loc}\n{traceback.format_exc()}"
-                    if self.debug:
-                        self.logger.info(note)
-            else:
-                kerningMutator = self.getKerningMutator(discreteLocation=discreteLocation)
-                if kerningMutator is not None:
-                    kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
-                    kerningObject.extractKerning(font)
-                    if self.debug:
-                        self.logger.info(f"\t\t\t{len(font.kerning)} kerning pairs added")
+            kerningObject = self.makeOneKerning(instanceDescriptor.location, pairs=pairs)
+            if kerningObject is not None:
+                kerningObject.extractKerning(font)
 
-        # # make the info
-        infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
-        if infoMutator is not None:
-            if not anisotropic:
-                infoInstanceObject = infoMutator.makeInstance(loc, bend=bend)
-            else:
-                horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
-                verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
-                # merge them again
-                infoInstanceObject = (1,0) * horizontalInfoInstanceObject + (0,1) * verticalInfoInstanceObject
-            if self.roundGeometry:
-                infoInstanceObject = infoInstanceObject.round()
+        # @@ makeOneInfo
+        infoInstanceObject = self.makeOneInfo(instanceDescriptor.location, roundGeometry=False, clip=False)
+        if infoInstanceObject is not None:
             infoInstanceObject.extractInfo(font.info)
-        font.info.familyName = instanceDescriptor.familyName
-        font.info.styleName = instanceDescriptor.styleName
-        font.info.postscriptFontName = instanceDescriptor.postScriptFontName # yikes, note the differences in capitalisation..
-        font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
-        font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
+            font.info.familyName = instanceDescriptor.familyName
+            font.info.styleName = instanceDescriptor.styleName
+            font.info.postscriptFontName = instanceDescriptor.postScriptFontName # yikes, note the differences in capitalisation..
+            font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
+            font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
 
         for sourceDescriptor in self.doc.sources:
             # XX do we really want to copy all items from all libs?
@@ -1193,7 +1193,6 @@ class UFOOperator(object):
             font.lib['public.glyphOrder'] = selectedGlyphNames
 
         for glyphName in selectedGlyphNames:
-            # can we take all this into a separate method for making a preview glyph object?
             glyphMutator, unicodes = self.getGlyphMutator(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
             if glyphMutator is None:
                 if self.debug:
@@ -1262,18 +1261,25 @@ class UFOOperator(object):
         anisotropic= True: *all* continuous axes get separate x, y values
         for discrete axes: random choice from the defined values
         for continuous axes: interpolated value between axis.minimum and axis.maximum
+
+        assuming we want this location for testing the ufoOperator machine:
+        we will eventually need a designspace location, not a userspace location. 
+
         """
         workLocation = {}
         for aD in self.getOrderedDiscreteAxes():
             workLocation[aD.name] = random.choice(aD.values)
         for aD in self.getOrderedContinuousAxes():
+            # use the map on the extremes to make sure we randomise between the proper extremes.
+            aD_minimum = aD.map_forward(aD.minimum)
+            aD_maximum = aD.map_forward(aD.maximum)
             if extrapolate:
                 delta = (aD.maximum - aD.minimum)
-                extraMinimum = aD.minimum - extrapolate * delta
-                extraMaximum = aD.maximum + extrapolate * delta
+                extraMinimum = aD_minimum - extrapolate * delta
+                extraMaximum = aD_maximum + extrapolate * delta
             else:
-                extraMinimum = aD.minimum
-                extraMaximum = aD.maximum
+                extraMinimum = aD_minimum
+                extraMaximum = aD_maximum
             if anisotropic:
                 x = ip(extraMinimum, extraMaximum, random.random())
                 y = ip(extraMinimum, extraMaximum, random.random())
@@ -1367,6 +1373,68 @@ class UFOOperator(object):
         self.useVarlib = previousModel
         return glyphInstanceObject
 
+    def makeOneInfo(self, location, roundGeometry=False, clip=False):
+        """ Make the fontMath.mathInfo object for this location.
+            You need to extract this to an instance font.
+            location: location including discrete axes, in **designspace** coordinates.
+        """
+        if self.debug:
+            self.logger.info(f"\t\t\tmakeOneInfo for {location}")
+        bend = False
+        anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(location)
+        # so we can take the math object that comes out of the calculation
+        infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
+        infoInstanceObject = None
+        if infoMutator is not None:
+            if not anisotropic:
+                infoInstanceObject = infoMutator.makeInstance(continuousLocation, bend=bend)
+            else:
+                horizontalInfoInstanceObject = infoMutator.makeInstance(locHorizontal, bend=bend)
+                verticalInfoInstanceObject = infoMutator.makeInstance(locVertical, bend=bend)
+                # merge them again
+                infoInstanceObject = (1,0) * horizontalInfoInstanceObject + (0,1) * verticalInfoInstanceObject
+            if self.roundGeometry:
+                infoInstanceObject = infoInstanceObject.round()
+        if self.debug:
+            if infoInstanceObject is not None:
+                self.logger.info(f"\t\t\t\tmakeOneInfo outcome: {infoInstanceObject}")
+            else:
+                self.logger.info(f"\t\t\t\tmakeOneInfo outcome: None")
+        return infoInstanceObject
+
+    def makeOneKerning(self, location, pairs=None):
+        """
+        Make the fontMath.mathKerning for this location.
+        location: location including discrete axes, in **designspace** coordinates.
+        pairs: a list of pairs, if you want to get a subset
+        """
+        if self.debug:
+            self.logger.info(f"\t\t\tmakeOneKerning for {location}")
+        bend = False
+        kerningObject = None
+        anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(location)
+        if pairs:
+            try:
+                kerningMutator = self.getKerningMutator(pairs=pairs, discreteLocation=discreteLocation)
+                kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
+            except Exception:
+                note = f"makeOneKerning: Could not make kerning for {loc}\n{traceback.format_exc()}"
+                if self.debug:
+                    self.logger.info(note)
+        else:
+            kerningMutator = self.getKerningMutator(discreteLocation=discreteLocation)
+            if kerningMutator is not None:
+                kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
+                # extract the object later
+                if self.debug:
+                    self.logger.info(f"\t\t\t\t{len(kerningObject.keys())} kerning pairs added")
+        if self.debug:
+            if kerningObject is not None:
+                self.logger.info(f"\t\t\t\tmakeOneKerning outcome: {kerningObject.items()}")
+            else:
+                self.logger.info(f"\t\t\t\tmakeOneKerning outcome: None")
+        return kerningObject
+
     def _copyFontInfo(self, sourceInfo, targetInfo):
         """ Copy the non-calculating fields from the source info."""
         infoAttributes = [
@@ -1424,8 +1492,6 @@ if __name__ == "__main__":
     import time, random
     from fontParts.world import RFont
     ds5Path = "../../Tests/ds5/ds5.designspace"
-    #ds5Path = "/Users/erik/code/type2/Principia/sources/Principia_wght_wght.designspace"
-    #ds5Path = None
     dumpCacheLog = True
     makeUFOs = True
     debug = True
@@ -1435,7 +1501,6 @@ if __name__ == "__main__":
     else:
         doc = UFOOperator(ds5Path, useVarlib=True, debug=debug)
         doc.loadFonts()
-    print("collectForegroundLayerNames", doc.collectForegroundLayerNames())
     if makeUFOs:
         doc.generateUFOs()
     randomLocation = doc.randomLocation()
@@ -1453,6 +1518,7 @@ if __name__ == "__main__":
         print(doc.randomLocation(extrapolate=0.1))
 
     # this is what reverse component mapping looks like:
+    print("getReverseComponentMapping:")
     print(doc.getReverseComponentMapping())
 
     # these are all the discrete locations in this designspace
@@ -1481,15 +1547,30 @@ if __name__ == "__main__":
     # generate instances with a limited set of decomposed glyphs
     # (useful for quick previews)
     glyph_names = ["glyphTwo"]
+    instanceCounter = 1
     for instanceDescriptor in doc.instances:
         instance = doc.makeInstance(instanceDescriptor, glyphNames=glyph_names, decomposeComponents=True)
-        print(f"Generated instance at {instanceDescriptor.location} with decomposed partial glyph set: {','.join(instance.keys())}")
+        print("-"*100+"\n"+f"Generated instance {instanceCounter} at {instanceDescriptor.location} with decomposed partial glyph set: {','.join(instance.keys())}")
         for name in glyph_names:
             glyph = instance[name]
             print(f"- {glyph.name} countours:{len(glyph)}, components: {len(glyph.components)}")
         print()
+        instanceCounter+=1
 
     # component related dependencies
     glyphName = "glyphOne"
     dependencies = doc.getGlyphDependencies(glyphName)
     print(f"{glyphName} dependencies: {dependencies}")
+
+    # make kerning for one location, for a subset of glyphs
+    randomLocation = doc.randomLocation()
+    kerns = doc.makeOneKerning(randomLocation, pairs=[('glyphOne', 'glyphTwo')])
+    print('kerns', kerns.items(), "at randomLocation", randomLocation)
+
+    # make font info for one location
+    randomLocation = doc.randomLocation()
+    info = doc.makeOneInfo(randomLocation)
+    outFont = RFont()
+    print(type(outFont))
+    outFont.info.fromMathInfo(info)
+    print('info', outFont.info, "at randomLocation", randomLocation)
