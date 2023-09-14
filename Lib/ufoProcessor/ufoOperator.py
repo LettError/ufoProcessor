@@ -1102,7 +1102,7 @@ class UFOOperator(object):
     def getLocationType(self, location):
         """Determine the type of the location:
         continuous / discrete
-        anisotropic / normal. 
+        anisotropic / normal.
         """
         continuousLocation, discreteLocation = self.splitLocation(location)
         if not self.extrapolate:
@@ -1263,7 +1263,7 @@ class UFOOperator(object):
         for continuous axes: interpolated value between axis.minimum and axis.maximum
 
         assuming we want this location for testing the ufoOperator machine:
-        we will eventually need a designspace location, not a userspace location. 
+        we will eventually need a designspace location, not a userspace location.
 
         """
         workLocation = {}
@@ -1418,7 +1418,7 @@ class UFOOperator(object):
                 kerningMutator = self.getKerningMutator(pairs=pairs, discreteLocation=discreteLocation)
                 kerningObject = kerningMutator.makeInstance(locHorizontal, bend=bend)
             except Exception:
-                note = f"makeOneKerning: Could not make kerning for {loc}\n{traceback.format_exc()}"
+                note = f"makeOneKerning: Could not make kerning for {location}\n{traceback.format_exc()}"
                 if self.debug:
                     self.logger.info(note)
         else:
