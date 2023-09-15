@@ -779,6 +779,7 @@ class UFOOperator(object):
             )
             if self.debug:
                 self.logger.info(f"\t\t{os.path.basename(instanceDescriptor.path)}")
+
             instanceFolder = os.path.dirname(instanceDescriptor.path)
             if not os.path.exists(instanceFolder):
                 os.makedirs(instanceFolder)
@@ -1158,25 +1159,19 @@ class UFOOperator(object):
             font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
             font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
 
-        for sourceDescriptor in self.doc.sources:
-            # XX do we really want to copy all items from all libs?
-            if sourceDescriptor.copyInfo:
-                # this is the source
-                if self.fonts[sourceDescriptor.name] is not None:
-                    self._copyFontInfo(self.fonts[sourceDescriptor.name].info, font.info)
-            if sourceDescriptor.copyLib:
-                # excplicitly copy the font.lib items
-                if self.fonts[sourceDescriptor.name] is not None:
-                    for key, value in self.fonts[sourceDescriptor.name].lib.items():
-                        font.lib[key] = value
-            if sourceDescriptor.copyGroups:
-                if self.fonts[sourceDescriptor.name] is not None:
-                    for key, value in self.fonts[sourceDescriptor.name].groups.items():
-                        font.groups[key] = value
-            if sourceDescriptor.copyFeatures:
-                if self.fonts[sourceDescriptor.name] is not None:
-                    featuresText = self.fonts[sourceDescriptor.name].features.text
-                    font.features.text = featuresText
+        defaultSourceFont = self.findDefaultFont()
+        # found a default source font
+        if defaultSourceFont:
+            # copy info
+            self._copyFontInfo(defaultSourceFont, font.info)
+            # copy lib
+            for key, value in defaultSourceFont.lib.items():
+                font.lib[key] = value
+            # copy groups
+            for key, value in defaultSourceFont.groups.items():
+                font.groups[key] = value
+            # copy features
+            font.features.text = defaultSourceFont.features.text
 
         # ok maybe now it is time to calculate some glyphs
         # glyphs
