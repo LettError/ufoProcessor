@@ -1163,7 +1163,7 @@ class UFOOperator(object):
         # found a default source font
         if defaultSourceFont:
             # copy info
-            self._copyFontInfo(defaultSourceFont, font.info)
+            self._copyFontInfo(defaultSourceFont.info, font.info)
             # copy lib
             for key, value in defaultSourceFont.lib.items():
                 font.lib[key] = value
@@ -1172,6 +1172,7 @@ class UFOOperator(object):
                 font.groups[key] = value
             # copy features
             font.features.text = defaultSourceFont.features.text
+        else:
 
         # ok maybe now it is time to calculate some glyphs
         # glyphs
