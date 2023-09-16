@@ -764,7 +764,7 @@ class UFOOperator(object):
             self.logger.info("## generateUFO")
         for instanceDescriptor in self.doc.instances:
             if self.debug:
-                self.logger.infoItem(f"Generating UFO at {instanceDescriptor.location}")
+                self.logger.infoItem(f"Generating UFO at designspaceLocation {instanceDescriptor.getFullDesignLocation(self.doc)}")
             if instanceDescriptor.path is None:
                 continue
             pairs = None
@@ -1127,12 +1127,12 @@ class UFOOperator(object):
         """ Generate a font object for this instance """
         if doRules is not None:
             warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
-        anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(instanceDescriptor.location)
+        fullDesignLocation = instanceDescriptor.getFullDesignLocation(self.doc)
+        anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(fullDesignLocation)
 
-        #continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
-        #if not self.extrapolate:
-        #    # Axis values are in userspace, so this needs to happen before bending
-        #    continuousLocation = self.clipDesignLocation(continuousLocation)
+        if not self.extrapolate:
+           # Axis values are in userspace, so this needs to happen before bending
+           continuousLocation = self.clipDesignLocation(continuousLocation)
 
         font = self._instantiateFont(None)
         loc = Location(continuousLocation)
@@ -1142,15 +1142,15 @@ class UFOOperator(object):
             anisotropic = True
             locHorizontal, locVertical = self.splitAnisotropic(loc)
             if self.debug:
-                self.logger.info(f"\t\t\tAnisotropic location for \"{instanceDescriptor.name}\"\n\t\t\t{instanceDescriptor.location}")
+                self.logger.info(f"\t\t\tAnisotropic location for \"{instanceDescriptor.name}\"\n\t\t\t{fullDesignLocation}")
         # @@ makeOneKerning
         if instanceDescriptor.kerning:
-            kerningObject = self.makeOneKerning(instanceDescriptor.location, pairs=pairs)
+            kerningObject = self.makeOneKerning(fullDesignLocation, pairs=pairs)
             if kerningObject is not None:
                 kerningObject.extractKerning(font)
 
         # @@ makeOneInfo
-        infoInstanceObject = self.makeOneInfo(instanceDescriptor.location, roundGeometry=False, clip=False)
+        infoInstanceObject = self.makeOneInfo(fullDesignLocation, roundGeometry=False, clip=False)
         if infoInstanceObject is not None:
             infoInstanceObject.extractInfo(font.info)
             font.info.familyName = instanceDescriptor.familyName
@@ -1241,11 +1241,11 @@ class UFOOperator(object):
                 glyphInstanceObject.drawPoints(pPen)
             font[glyphName].width = glyphInstanceObject.width
             # add designspace location to lib
-            font.lib['designspace.location'] = list(instanceDescriptor.location.items())
+            font.lib['ufoProcessor.fullDesignspaceLocation'] = list(instanceDescriptor.getFullDesignLocation(self.doc).items())
             if self.useVarlib:
-                font.lib['designspace.mathmodel'] = "fonttools.varlib"
+                font.lib['ufoProcessor.mathmodel'] = "fonttools.varlib"
             else:
-                font.lib['designspace.mathmodel'] = "mutatorMath"
+                font.lib['ufoProcessor.mathmodel'] = "mutatorMath"
         if self.debug:
             self.logger.info(f"\t\t\t{len(selectedGlyphNames)} glyphs added")
         return font
@@ -1545,7 +1545,7 @@ if __name__ == "__main__":
     instanceCounter = 1
     for instanceDescriptor in doc.instances:
         instance = doc.makeInstance(instanceDescriptor, glyphNames=glyph_names, decomposeComponents=True)
-        print("-"*100+"\n"+f"Generated instance {instanceCounter} at {instanceDescriptor.location} with decomposed partial glyph set: {','.join(instance.keys())}")
+        print("-"*100+"\n"+f"Generated instance {instanceCounter} at {instanceDescriptor.getFullDesignLocation(doc)} with decomposed partial glyph set: {','.join(instance.keys())}")
         for name in glyph_names:
             glyph = instance[name]
             print(f"- {glyph.name} countours:{len(glyph)}, components: {len(glyph.components)}")
