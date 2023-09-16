@@ -756,6 +756,7 @@ class UFOOperator(object):
     def generateUFOs(self, useVarlib=None):
         # generate an UFO for each of the instance locations
         previousModel = self.useVarlib
+        generatedFontPaths = []
         if useVarlib is not None:
             self.useVarlib = useVarlib
         glyphCount = 0
@@ -784,10 +785,12 @@ class UFOOperator(object):
             if not os.path.exists(instanceFolder):
                 os.makedirs(instanceFolder)
             font.save(instanceDescriptor.path)
+            generatedFontPaths.append(instanceDescriptor.path)
             glyphCount += len(font)
         if self.debug:
             self.logger.info(f"\t\tGenerated {glyphCount} glyphs altogether.")
         self.useVarlib = previousModel
+        return generatedFontPaths
 
     generateUFO = generateUFOs
 
