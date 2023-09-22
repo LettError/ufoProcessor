@@ -102,6 +102,10 @@ def getUFOVersion(ufoPath):
             #   <integer>2</integer>
             # </dict>
             # </plist>
+    if os.path.splitext(ufoPath)[-1]==".ufoz":
+        # .ufoz has to be ufo3 or more. As we have no curreny UFO4 development, or even prototypes,
+        # this will be a safe assumption. Until it won't be.
+        return 3
     metaInfoPath = os.path.join(ufoPath, "metainfo.plist")
     with open(metaInfoPath, 'rb') as f:
         p = plistlib.load(f)
@@ -913,6 +917,11 @@ class UFOOperator(object):
             axes[aD.name] = aD
         return axes
 
+    def locationWillClip(self, location):
+        # return True if this location will be clipped.
+        clipped = self.clipDesignLocation(location)
+        return not clipped == location
+
     def clipDesignLocation(self, location):
         # return a copy of the design location without extrapolation
         # assume location is in designspace coordinates.
@@ -1534,6 +1543,9 @@ if __name__ == "__main__":
     print(doc.glyphsInCache())
 
     print(doc.clipDesignLocation(dict(width=(-1000, 2000))))
+    print("locationWillClip()", doc.locationWillClip(dict(width=(-1000, 2000))))
+    defaultLocation = doc.newDefaultLocation()
+    print("locationWillClip(default)", doc.locationWillClip(defaultLocation))
 
     print('newDefaultLocation()', doc.newDefaultLocation(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}))
     print('newDefaultLocation()', doc.newDefaultLocation())
