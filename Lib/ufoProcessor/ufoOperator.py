@@ -113,18 +113,18 @@ def getUFOVersion(ufoPath):
 
 def getDefaultLayerName(f):
     # get the name of the default layer from a defcon font (outside RF) and from a fontparts font (outside and inside RF)
-    if issubclass(type(f), defcon.objects.font.Font):
+    if isinstance(f, defcon.objects.font.Font):
         return f.layers.defaultLayer.name
-    elif issubclass(type(f), fontParts.fontshell.font.RFont):
+    elif isinstance(f, fontParts.fontshell.font.RFont):
         return f.defaultLayer.name
     return None
 
 def getLayer(f, layerName):
     # get the layer from a defcon font and from a fontparts font
-    if issubclass(type(f), defcon.objects.font.Font):
+    if isinstance(f, defcon.objects.font.Font):
         if layerName in f.layers:
             return f.layers[layerName]
-    elif issubclass(type(f), fontParts.fontshell.font.RFont):
+    elif isinstance(f, fontParts.fontshell.font.RFont):
         if layerName in f.layerOrder:
             return f.getLayer(layerName)
     return None
@@ -743,7 +743,7 @@ class UFOOperator(object):
                 font = self.fonts.get(sourceDescriptor.name)
                 if font is None:
                     return {}
-                if issubclass(type(font), defcon.objects.font.Font):
+                if isinstance(font, defcon.objects.font.Font):
                     # defcon
                     reverseComponentMapping = {}
                     for base, comps in font.componentReferences.items():
