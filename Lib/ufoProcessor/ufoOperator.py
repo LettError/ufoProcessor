@@ -423,11 +423,9 @@ class UFOOperator(object):
         characterMap = {}
         defaultSourceDescriptor = self.findDefault(discreteLocation=discreteLocation)
         if not defaultSourceDescriptor:
-            print("no defaultSourceDescriptor")
             return {}
         defaultFont = self.fonts.get(defaultSourceDescriptor.name)
         if defaultFont is None:
-            print("no defaultFont")
             return {}
         for glyph in defaultFont:
             if glyph.unicodes:
@@ -568,6 +566,9 @@ class UFOOperator(object):
         return [axisDescriptor.name for axisDescriptor in self.doc.axes]
 
     axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
+
+    def getFullDesignLocation(self, location):
+        return self.doc.getFullDesignLocation(location, self.doc)
 
     def getDiscreteLocations(self):
         # return a list of all permutated discrete locations
@@ -1139,6 +1140,7 @@ class UFOOperator(object):
         """ Generate a font object for this instance """
         if doRules is not None:
             warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
+        # hmm getFullDesignLocation does not support anisotropc locations?
         fullDesignLocation = instanceDescriptor.getFullDesignLocation(self.doc)
         anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(fullDesignLocation)
 
@@ -1262,20 +1264,24 @@ class UFOOperator(object):
             self.logger.info(f"\t\t\t{len(selectedGlyphNames)} glyphs added")
         return font
 
-    def randomLocation(self, extrapolate=0, anisotropic=False, roundValues=True):
+    def randomLocation(self, extrapolate=0, anisotropic=False, roundValues=True, discreteLocation=None):
         """A good random location, for quick testing and entertainment
         extrapolate: is a factor of the (max-min) distance. 0 = nothing, 0.1 = 0.1 * (max - min)
         anisotropic= True: *all* continuous axes get separate x, y values
         for discrete axes: random choice from the defined values
         for continuous axes: interpolated value between axis.minimum and axis.maximum
+        if discreteLocation is given, make a random location for the continuous part.
 
         assuming we want this location for testing the ufoOperator machine:
         we will eventually need a designspace location, not a userspace location.
 
         """
         workLocation = {}
-        for aD in self.getOrderedDiscreteAxes():
-            workLocation[aD.name] = random.choice(aD.values)
+        if discreteLocation:
+            workLocation.update(discreteLocation)
+        else:
+            for aD in self.getOrderedDiscreteAxes():
+                workLocation[aD.name] = random.choice(aD.values)
         for aD in self.getOrderedContinuousAxes():
             # use the map on the extremes to make sure we randomise between the proper extremes.
             aD_minimum = aD.map_forward(aD.minimum)
@@ -1300,6 +1306,21 @@ class UFOOperator(object):
                     v = round(v)
                 workLocation[aD.name] = v
         return workLocation
+
+    def getLocationsForFont(self, fontObj):
+        # returns the locations this fontObj is used at, in this designspace
+        # returns [], [] if the fontObj is not used at all
+        # returns [loc], [] if the fontObj has no discrete location.
+        # Note: this returns *a list* as one fontObj can be used at multiple locations in a designspace.
+        # Note: fontObj must have a path.
+        discreteLocations = []
+        continuousLocations = []
+        for s in doc.sources:
+            if s.path == fontObj.path:
+                cl, dl = doc.splitLocation(s.location)
+                discreteLocations.append(dl)
+                continuousLocations.append(cl)
+        return continuousLocations, discreteLocations
 
     # @memoize
     def makeFontProportions(self, location, bend=False, roundGeometry=True):
@@ -1538,7 +1559,7 @@ if __name__ == "__main__":
     print(doc.glyphChanged(randomGlyphName, includeDependencies=True))
 
     # get a list of font objects
-    print(doc.getFonts())
+    doc.loadFonts()
 
     print(doc.glyphsInCache())
 
@@ -1584,3 +1605,10 @@ if __name__ == "__main__":
     print(type(outFont))
     outFont.info.fromMathInfo(info)
     print('info', outFont.info, "at randomLocation", randomLocation)
+
+    for f, loc in doc.getFonts():
+        continuousLocs, discreteLocs = doc.getLocationsForFont(f)
+        testLoc = continuousLocs[0]
+        testLoc.update(discreteLocs[0])
+        print(f, testLoc == loc)
+    
