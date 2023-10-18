@@ -102,6 +102,10 @@ def getUFOVersion(ufoPath):
             #   <integer>2</integer>
             # </dict>
             # </plist>
+    if os.path.splitext(ufoPath)[-1]==".ufoz":
+        # .ufoz has to be ufo3 or more. As we have no curreny UFO4 development, or even prototypes,
+        # this will be a safe assumption. Until it won't be.
+        return 3
     metaInfoPath = os.path.join(ufoPath, "metainfo.plist")
     with open(metaInfoPath, 'rb') as f:
         p = plistlib.load(f)
@@ -109,18 +113,18 @@ def getUFOVersion(ufoPath):
 
 def getDefaultLayerName(f):
     # get the name of the default layer from a defcon font (outside RF) and from a fontparts font (outside and inside RF)
-    if issubclass(type(f), defcon.objects.font.Font):
+    if isinstance(f, defcon.objects.font.Font):
         return f.layers.defaultLayer.name
-    elif issubclass(type(f), fontParts.fontshell.font.RFont):
+    elif isinstance(f, fontParts.fontshell.font.RFont):
         return f.defaultLayer.name
     return None
 
 def getLayer(f, layerName):
     # get the layer from a defcon font and from a fontparts font
-    if issubclass(type(f), defcon.objects.font.Font):
+    if isinstance(f, defcon.objects.font.Font):
         if layerName in f.layers:
             return f.layers[layerName]
-    elif issubclass(type(f), fontParts.fontshell.font.RFont):
+    elif isinstance(f, fontParts.fontshell.font.RFont):
         if layerName in f.layerOrder:
             return f.getLayer(layerName)
     return None
@@ -419,11 +423,9 @@ class UFOOperator(object):
         characterMap = {}
         defaultSourceDescriptor = self.findDefault(discreteLocation=discreteLocation)
         if not defaultSourceDescriptor:
-            print("no defaultSourceDescriptor")
             return {}
         defaultFont = self.fonts.get(defaultSourceDescriptor.name)
         if defaultFont is None:
-            print("no defaultFont")
             return {}
         for glyph in defaultFont:
             if glyph.unicodes:
@@ -564,6 +566,9 @@ class UFOOperator(object):
         return [axisDescriptor.name for axisDescriptor in self.doc.axes]
 
     axisOrder = property(_getAxisOrder, doc="get the axis order from the axis descriptors")
+
+    def getFullDesignLocation(self, location):
+        return self.doc.getFullDesignLocation(location, self.doc)
 
     def getDiscreteLocations(self):
         # return a list of all permutated discrete locations
@@ -739,7 +744,7 @@ class UFOOperator(object):
                 font = self.fonts.get(sourceDescriptor.name)
                 if font is None:
                     return {}
-                if issubclass(type(font), defcon.objects.font.Font):
+                if isinstance(font, defcon.objects.font.Font):
                     # defcon
                     reverseComponentMapping = {}
                     for base, comps in font.componentReferences.items():
@@ -756,6 +761,7 @@ class UFOOperator(object):
     def generateUFOs(self, useVarlib=None):
         # generate an UFO for each of the instance locations
         previousModel = self.useVarlib
+        generatedFontPaths = []
         if useVarlib is not None:
             self.useVarlib = useVarlib
         glyphCount = 0
@@ -764,7 +770,7 @@ class UFOOperator(object):
             self.logger.info("## generateUFO")
         for instanceDescriptor in self.doc.instances:
             if self.debug:
-                self.logger.infoItem(f"Generating UFO at {instanceDescriptor.location}")
+                self.logger.infoItem(f"Generating UFO at designspaceLocation {instanceDescriptor.getFullDesignLocation(self.doc)}")
             if instanceDescriptor.path is None:
                 continue
             pairs = None
@@ -784,10 +790,12 @@ class UFOOperator(object):
             if not os.path.exists(instanceFolder):
                 os.makedirs(instanceFolder)
             font.save(instanceDescriptor.path)
+            generatedFontPaths.append(instanceDescriptor.path)
             glyphCount += len(font)
         if self.debug:
             self.logger.info(f"\t\tGenerated {glyphCount} glyphs altogether.")
         self.useVarlib = previousModel
+        return generatedFontPaths
 
     generateUFO = generateUFOs
 
@@ -909,6 +917,11 @@ class UFOOperator(object):
         for aD in self.doc.axes:
             axes[aD.name] = aD
         return axes
+
+    def locationWillClip(self, location):
+        # return True if this location will be clipped.
+        clipped = self.clipDesignLocation(location)
+        return not clipped == location
 
     def clipDesignLocation(self, location):
         # return a copy of the design location without extrapolation
@@ -1127,12 +1140,13 @@ class UFOOperator(object):
         """ Generate a font object for this instance """
         if doRules is not None:
             warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
-        anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(instanceDescriptor.location)
+        # hmm getFullDesignLocation does not support anisotropc locations?
+        fullDesignLocation = instanceDescriptor.getFullDesignLocation(self.doc)
+        anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(fullDesignLocation)
 
-        #continuousLocation, discreteLocation = self.splitLocation(instanceDescriptor.location)
-        #if not self.extrapolate:
-        #    # Axis values are in userspace, so this needs to happen before bending
-        #    continuousLocation = self.clipDesignLocation(continuousLocation)
+        if not self.extrapolate:
+           # Axis values are in userspace, so this needs to happen before bending
+           continuousLocation = self.clipDesignLocation(continuousLocation)
 
         font = self._instantiateFont(None)
         loc = Location(continuousLocation)
@@ -1142,15 +1156,15 @@ class UFOOperator(object):
             anisotropic = True
             locHorizontal, locVertical = self.splitAnisotropic(loc)
             if self.debug:
-                self.logger.info(f"\t\t\tAnisotropic location for \"{instanceDescriptor.name}\"\n\t\t\t{instanceDescriptor.location}")
+                self.logger.info(f"\t\t\tAnisotropic location for \"{instanceDescriptor.name}\"\n\t\t\t{fullDesignLocation}")
         # @@ makeOneKerning
         if instanceDescriptor.kerning:
-            kerningObject = self.makeOneKerning(instanceDescriptor.location, pairs=pairs)
+            kerningObject = self.makeOneKerning(fullDesignLocation, pairs=pairs)
             if kerningObject is not None:
                 kerningObject.extractKerning(font)
 
         # @@ makeOneInfo
-        infoInstanceObject = self.makeOneInfo(instanceDescriptor.location, roundGeometry=False, clip=False)
+        infoInstanceObject = self.makeOneInfo(fullDesignLocation, roundGeometry=False, clip=False)
         if infoInstanceObject is not None:
             infoInstanceObject.extractInfo(font.info)
             font.info.familyName = instanceDescriptor.familyName
@@ -1241,29 +1255,33 @@ class UFOOperator(object):
                 glyphInstanceObject.drawPoints(pPen)
             font[glyphName].width = glyphInstanceObject.width
             # add designspace location to lib
-            font.lib['designspace.location'] = list(instanceDescriptor.location.items())
+            font.lib['ufoProcessor.fullDesignspaceLocation'] = list(instanceDescriptor.getFullDesignLocation(self.doc).items())
             if self.useVarlib:
-                font.lib['designspace.mathmodel'] = "fonttools.varlib"
+                font.lib['ufoProcessor.mathmodel'] = "fonttools.varlib"
             else:
-                font.lib['designspace.mathmodel'] = "mutatorMath"
+                font.lib['ufoProcessor.mathmodel'] = "mutatorMath"
         if self.debug:
             self.logger.info(f"\t\t\t{len(selectedGlyphNames)} glyphs added")
         return font
 
-    def randomLocation(self, extrapolate=0, anisotropic=False, roundValues=True):
+    def randomLocation(self, extrapolate=0, anisotropic=False, roundValues=True, discreteLocation=None):
         """A good random location, for quick testing and entertainment
         extrapolate: is a factor of the (max-min) distance. 0 = nothing, 0.1 = 0.1 * (max - min)
         anisotropic= True: *all* continuous axes get separate x, y values
         for discrete axes: random choice from the defined values
         for continuous axes: interpolated value between axis.minimum and axis.maximum
+        if discreteLocation is given, make a random location for the continuous part.
 
         assuming we want this location for testing the ufoOperator machine:
         we will eventually need a designspace location, not a userspace location.
 
         """
         workLocation = {}
-        for aD in self.getOrderedDiscreteAxes():
-            workLocation[aD.name] = random.choice(aD.values)
+        if discreteLocation:
+            workLocation.update(discreteLocation)
+        else:
+            for aD in self.getOrderedDiscreteAxes():
+                workLocation[aD.name] = random.choice(aD.values)
         for aD in self.getOrderedContinuousAxes():
             # use the map on the extremes to make sure we randomise between the proper extremes.
             aD_minimum = aD.map_forward(aD.minimum)
@@ -1288,6 +1306,21 @@ class UFOOperator(object):
                     v = round(v)
                 workLocation[aD.name] = v
         return workLocation
+
+    def getLocationsForFont(self, fontObj):
+        # returns the locations this fontObj is used at, in this designspace
+        # returns [], [] if the fontObj is not used at all
+        # returns [loc], [] if the fontObj has no discrete location.
+        # Note: this returns *a list* as one fontObj can be used at multiple locations in a designspace.
+        # Note: fontObj must have a path.
+        discreteLocations = []
+        continuousLocations = []
+        for s in doc.sources:
+            if s.path == fontObj.path:
+                cl, dl = doc.splitLocation(s.location)
+                discreteLocations.append(dl)
+                continuousLocations.append(cl)
+        return continuousLocations, discreteLocations
 
     # @memoize
     def makeFontProportions(self, location, bend=False, roundGeometry=True):
@@ -1527,11 +1560,14 @@ if __name__ == "__main__":
     print(doc.glyphChanged(randomGlyphName, includeDependencies=True))
 
     # get a list of font objects
-    print(doc.getFonts())
+    doc.loadFonts()
 
     print(doc.glyphsInCache())
 
     print(doc.clipDesignLocation(dict(width=(-1000, 2000))))
+    print("locationWillClip()", doc.locationWillClip(dict(width=(-1000, 2000))))
+    defaultLocation = doc.newDefaultLocation()
+    print("locationWillClip(default)", doc.locationWillClip(defaultLocation))
 
     print('newDefaultLocation()', doc.newDefaultLocation(discreteLocation={'countedItems': 3.0, 'outlined': 1.0}))
     print('newDefaultLocation()', doc.newDefaultLocation())
@@ -1546,7 +1582,7 @@ if __name__ == "__main__":
     instanceCounter = 1
     for instanceDescriptor in doc.instances:
         instance = doc.makeInstance(instanceDescriptor, glyphNames=glyph_names, decomposeComponents=True)
-        print("-"*100+"\n"+f"Generated instance {instanceCounter} at {instanceDescriptor.location} with decomposed partial glyph set: {','.join(instance.keys())}")
+        print("-"*100+"\n"+f"Generated instance {instanceCounter} at {instanceDescriptor.getFullDesignLocation(doc)} with decomposed partial glyph set: {','.join(instance.keys())}")
         for name in glyph_names:
             glyph = instance[name]
             print(f"- {glyph.name} countours:{len(glyph)}, components: {len(glyph.components)}")
@@ -1570,3 +1606,10 @@ if __name__ == "__main__":
     print(type(outFont))
     outFont.info.fromMathInfo(info)
     print('info', outFont.info, "at randomLocation", randomLocation)
+
+    for f, loc in doc.getFonts():
+        continuousLocs, discreteLocs = doc.getLocationsForFont(f)
+        testLoc = continuousLocs[0]
+        testLoc.update(discreteLocs[0])
+        print(f, testLoc == loc)
+    
