@@ -41,7 +41,7 @@ def immutify(obj):
     if isinstance(obj, dict):
         for key, value in obj.items():
             hashValues.extend([key, immutify(value)])
-    elif isinstance(obj, list):
+    elif isinstance(obj, (list, tuple)):
         for value in obj:
             hashValues.extend(immutify(value))
     else:
@@ -1310,6 +1310,7 @@ class UFOOperator(object):
         data = dict(unitsPerEm=infoInstanceObject.unitsPerEm, ascender=infoInstanceObject.ascender, descender=infoInstanceObject.descender, xHeight=infoInstanceObject.xHeight)
         return data
 
+    @memoize
     def makeOneGlyph(self, glyphName, location, decomposeComponents=True, useVarlib=False, roundGeometry=False, clip=False):
         """
         glyphName:
