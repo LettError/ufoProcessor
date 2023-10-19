@@ -1,6 +1,7 @@
 import os
 import functools
 import itertools
+import inspect
 
 import random
 import defcon
@@ -32,6 +33,7 @@ _memoizeStats = dict()
 def ip(a, b, f):
     return a+f*(b-a)
 
+
 def immutify(obj):
     # make an immutable version of this object.
     # assert immutify(10) == (10,)
@@ -39,21 +41,70 @@ def immutify(obj):
     # assert immutify(dict(foo="bar", world=["a", "b"])) == ('foo', ('bar',), 'world', ('a', 'b'))
     hashValues = []
     if isinstance(obj, dict):
-        for key, value in obj.items():
-            hashValues.extend([key, immutify(value)])
+        hashValues.append(
+            MemoizeDict(
+                [(key, immutify(value)) for key, value in obj.items()]
+            )
+        )
+    elif isinstance(obj, set):
+        for value in sorted(obj):
+            hashValues.extend(immutify(value))
     elif isinstance(obj, (list, tuple)):
         for value in obj:
-            hashValues.extend(immutify(value))
+            hashValues.append(immutify(value))
     else:
         hashValues.append(obj)
+    if len(hashValues) == 1:
+        return hashValues[0]
     return tuple(hashValues)
 
+
+class MemoizeDict(dict):
+
+    """
+    An immutable dictionary.
+
+    >>> d = MemoizeDict(name="a", test="b")
+    >>> d["name"]
+    'a'
+    >>> d["name"] = "c"
+    Traceback (most recent call last):
+        ...
+    RuntimeError: Cannot modify ImmutableDict
+    """
+
+    def __readonly__(self, *args, **kwargs):
+        raise RuntimeError("Cannot modify MemoizeDict")
+
+    __setitem__ = __readonly__
+    __delitem__ = __readonly__
+    pop = __readonly__
+    popitem = __readonly__
+    clear = __readonly__
+    update = __readonly__
+    setdefault = __readonly__
+    del __readonly__
+
+    _hash = None
+
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash(frozenset(self.items()))
+        return self._hash
+
+
 def memoize(function):
+    signature = inspect.signature(function)
+    argsKeys = [parameter.name for parameter in signature.parameters.values()]
+
     @functools.wraps(function)
-    def wrapper(self, *args, **kwargs):
-        immutableargs = immutify(args)
-        immutablekwargs = immutify(kwargs)
-        key = (function.__name__, self, immutableargs, immutablekwargs)
+    def wrapper(*args, **kwargs):
+        immutablekwargs = immutify(dict(
+            **{key: value for key, value in zip(argsKeys, args)},
+            **kwargs
+        ))
+        key = (function.__name__, immutablekwargs)
+
         if key in _memoizeCache:
             # keep track of how often we get to serve something from the cache
             # note: if the object itself is part of the key
@@ -61,34 +112,36 @@ def memoize(function):
             _memoizeStats[key] += 1
             return _memoizeCache[key]
         else:
-            result = function(self, *args, **kwargs)
+            result = function(*args, **kwargs)
             _memoizeCache[key] = result
             _memoizeStats[key] = 1
             return result
     return wrapper
 
+
 def inspectMemoizeCache():
     frequency = []
     objects = {}
     items = []
-    for key, value in _memoizeCache.items():
-        if key[0] == "getGlyphMutator":
-            functionName = f"{id(key[1]):X} {key[0]}: {key[2][0][0]}"
+    for (funcName, data), value in _memoizeCache.items():
+        if funcName == "getGlyphMutator":
+            functionName = f"{id(data['self']):X} {funcName}: {data['glyphName']}"
         else:
-            functionName = f"{id(key[1]):X} {key[0]}"
+            functionName = f"{id(data['self']):X} {funcName}"
         if functionName not in objects:
             objects[functionName] = 0
         objects[functionName] += 1
     items = [(k, v) for k, v in objects.items()]
     for key in _memoizeStats.keys():
-        if key[0] == "getGlyphMutator":
-            functionName = f"{id(key[1]):X} {key[0]}: {key[2][0][0]}"
+        if funcName == "getGlyphMutator":
+            functionName = f"{id(data['self']):X} {funcName}: {data['glyphName']}"
         else:
-            functionName = f"{id(key[1]):X} {key[0]}"
+            functionName = f"{id(data['self']):X} {funcName}"
         called = _memoizeStats[key]
         frequency.append((functionName, called))
     frequency.sort()
     return items, frequency
+
 
 def getUFOVersion(ufoPath):
     # Peek into a ufo to read its format version.
@@ -441,10 +494,13 @@ class UFOOperator(object):
         # clears everything relating to this designspacedocument
         # the cache could contain more designspacedocument objects.
         for key in list(_memoizeCache.keys()):
-            if key[1] == self:
+            funcName, data = key
+            if data["self"] == self:
                 del _memoizeCache[key]
                 if key in _memoizeStats:
                     del _memoizeStats[key]
+
+    _cachedCallbacksWithGlyphNames = ("getGlyphMutator", "collectSourcesForGlyph", "makeOneGlyph")
 
     def glyphChanged(self, glyphName, includeDependencies=False):
         """Clears this one specific glyph from the memoize cache
@@ -461,49 +517,17 @@ class UFOOperator(object):
                 changedNames.update(dependencies)
 
         remove = []
+
         for key in list(_memoizeCache.keys()):
-            # the glyphname is hiding quite deep in key[2]
-            # (('glyphTwo',),)
-            # this is because of how immutify does it. Could be different I suppose but this works
-            
-            # useful to print the items in a key to see what we need to remove.
-            #for i, item in enumerate(key):
-            #    print(f"\t{i}\t{key[i]}")
+            funcName, data = key
+            if data["self"] == self and funcName in self._cachedCallbacksWithGlyphNames and data["glyphName"] in changedNames:
+                remove.append(key)
 
-            if key[0] == "getGlyphMutator" and key[1] == self:
-                # 0   collectSourcesForGlyph
-                # 1   <designspaceEditor.ui.DesignspaceEditorOperator object at 0x11af7a370>
-                # 2   (('T',),)
-                # 3   ('decomposeComponents', (True,), 'discreteLocation', (None,))
-                if key[2][0][0] in changedNames:
-                    #print('\tglyphChanged > getGlyphMutator', key[2][0][0] in changedNames, key[2][0][0], changedNames)
-                    remove.append(key)
-
-            elif key[0] == "makeOneGlyph" and key[1] == self:
-                if key[2][0][0] in changedNames:
-                    #print("\tglyphChanged > makeOneGlyph", key[2][0][0] in changedNames, key[2][0][0], changedNames)
-                    remove.append(key)
-
-            elif key[0] == "collectSourcesForGlyph" and key[1] == self:
-                # 0   collectSourcesForGlyph
-                # 1   <designspaceEditor.ui.DesignspaceEditorOperator object at 0x11af7a370>
-                # 2   ((),)
-                # 3   ('glyphName', ('C',), 'decomposeComponents', (True,), 'discreteLocation', (None,))                
-                if key[3][1][0] in changedNames:
-                    #print('\tglyphChanged > collectSourcesForGlyph', key[3][1][0] in changedNames, key[3][1][0], changedNames)
-                    remove.append(key)
-
-        #if remove:
-        #    print(f"\tglyphChanged > removing {len(remove)} keys from cache: {len(_memoizeCache.keys())}")
-        remove = list(set(remove))
+        remove = set(remove)
         for key in remove:
-            #if key in _memoizeCache:
             del _memoizeCache[key]
-            #print(f"glyphChanged removed {key}")
             if key in _memoizeStats:
                 del _memoizeStats[key]
-        #if remove:
-        #    print(f"\tglyphChanged > new cache: {len(_memoizeCache.keys())}")
 
     def getGlyphDependencies(self, glyphName):
         dependencies = set()
@@ -519,9 +543,9 @@ class UFOOperator(object):
     def glyphsInCache(self):
         """report which glyphs are in the cache at the moment"""
         names = set()
-        for key in list(_memoizeCache.keys()):
-            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[1] == self:
-                names.add(key[2][0][0])
+        for funcName, data in list(_memoizeCache.keys()):
+            if funcName in self._cachedCallbacksWithGlyphNames and data["self"] == self:
+                names.add(data["glyphName"])
         names = list(names)
         names.sort()
         return names
@@ -1646,5 +1670,5 @@ if __name__ == "__main__":
         testLoc = continuousLocs[0]
         testLoc.update(discreteLocs[0])
         print(f, testLoc == loc)
-    
+
     print(doc.getOrderedDiscreteAxes())
