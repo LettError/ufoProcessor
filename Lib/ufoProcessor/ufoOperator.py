@@ -465,8 +465,24 @@ class UFOOperator(object):
             # the glyphname is hiding quite deep in key[2]
             # (('glyphTwo',),)
             # this is because of how immutify does it. Could be different I suppose but this works
-            if key[0] in ("getGlyphMutator", "collectSourcesForGlyph") and key[1] == self and key[2][0][0] in changedNames:
-                remove.append(key)
+            for i, item in enumerate(key):
+                print(f"\t{i}\t{key[i]}")
+
+            if key[0] == "getGlyphMutator" and key[1] == self:
+                # 0   collectSourcesForGlyph
+                # 1   <designspaceEditor.ui.DesignspaceEditorOperator object at 0x11af7a370>
+                # 2   (('T',),)
+                # 3   ('decomposeComponents', (True,), 'discreteLocation', (None,))
+                if key[2][0][0] in changedNames:
+                    remove.append(key)
+            elif key[0] == "collectSourcesForGlyph" and key[1] == self:
+                # 0   collectSourcesForGlyph
+                # 1   <designspaceEditor.ui.DesignspaceEditorOperator object at 0x11af7a370>
+                # 2   ((),)
+                # 3   ('glyphName', ('C',), 'decomposeComponents', (True,), 'discreteLocation', (None,))                
+                print('key[3][1][0] in changedNames', key[3][1][0] in changedNames, key[3][1][0], changedNames)
+                if key[3][1][0] in changedNames:
+                    remove.append(key)
         for key in remove:
             del _memoizeCache[key]
             if key in _memoizeStats:
@@ -1315,9 +1331,9 @@ class UFOOperator(object):
         # Note: fontObj must have a path.
         discreteLocations = []
         continuousLocations = []
-        for s in doc.sources:
+        for s in self.sources:
             if s.path == fontObj.path:
-                cl, dl = doc.splitLocation(s.location)
+                cl, dl = self.splitLocation(s.location)
                 discreteLocations.append(dl)
                 continuousLocations.append(cl)
         return continuousLocations, discreteLocations
