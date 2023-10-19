@@ -465,8 +465,10 @@ class UFOOperator(object):
             # the glyphname is hiding quite deep in key[2]
             # (('glyphTwo',),)
             # this is because of how immutify does it. Could be different I suppose but this works
-            for i, item in enumerate(key):
-                print(f"\t{i}\t{key[i]}")
+            
+            # useful to print the items in a key to see what we need to remove.
+            #for i, item in enumerate(key):
+            #    print(f"\t{i}\t{key[i]}")
 
             if key[0] == "getGlyphMutator" and key[1] == self:
                 # 0   collectSourcesForGlyph
@@ -474,19 +476,34 @@ class UFOOperator(object):
                 # 2   (('T',),)
                 # 3   ('decomposeComponents', (True,), 'discreteLocation', (None,))
                 if key[2][0][0] in changedNames:
+                    #print('\tglyphChanged > getGlyphMutator', key[2][0][0] in changedNames, key[2][0][0], changedNames)
                     remove.append(key)
+
+            elif key[0] == "makeOneGlyph" and key[1] == self:
+                if key[2][0][0] in changedNames:
+                    #print("\tglyphChanged > makeOneGlyph", key[2][0][0] in changedNames, key[2][0][0], changedNames)
+                    remove.append(key)
+
             elif key[0] == "collectSourcesForGlyph" and key[1] == self:
                 # 0   collectSourcesForGlyph
                 # 1   <designspaceEditor.ui.DesignspaceEditorOperator object at 0x11af7a370>
                 # 2   ((),)
                 # 3   ('glyphName', ('C',), 'decomposeComponents', (True,), 'discreteLocation', (None,))                
-                print('key[3][1][0] in changedNames', key[3][1][0] in changedNames, key[3][1][0], changedNames)
                 if key[3][1][0] in changedNames:
+                    #print('\tglyphChanged > collectSourcesForGlyph', key[3][1][0] in changedNames, key[3][1][0], changedNames)
                     remove.append(key)
+
+        #if remove:
+        #    print(f"\tglyphChanged > removing {len(remove)} keys from cache: {len(_memoizeCache.keys())}")
+        remove = list(set(remove))
         for key in remove:
+            #if key in _memoizeCache:
             del _memoizeCache[key]
+            #print(f"glyphChanged removed {key}")
             if key in _memoizeStats:
                 del _memoizeStats[key]
+        #if remove:
+        #    print(f"\tglyphChanged > new cache: {len(_memoizeCache.keys())}")
 
     def getGlyphDependencies(self, glyphName):
         dependencies = set()
@@ -1374,6 +1391,7 @@ class UFOOperator(object):
 
         Returns: a mathglyph, results are cached
         """
+        #print("makeOneGlyph", glyphName, location)
         continuousLocation, discreteLocation = self.splitLocation(location)
 
         bend=False  #
@@ -1629,3 +1647,4 @@ if __name__ == "__main__":
         testLoc.update(discreteLocs[0])
         print(f, testLoc == loc)
     
+    print(doc.getOrderedDiscreteAxes())
