@@ -471,10 +471,12 @@ class UFOOperator(object):
                 fonts.append((f, sourceDescriptor.location))
         return fonts
 
-    def usesFont(self, font):
+    def usesFont(self, fontObj=None):
         # return True if font is used in this designspace.
-        for name, fontObj in self.fonts.items():
-            if font.path == fontObj.path:
+        if fontObj is None:
+            return False
+        for name, otherFontObj in self.fonts.items():
+            if otherFontObj.path == fontObj.path:
                 # we don't need to know anything else
                 return True
         return False
