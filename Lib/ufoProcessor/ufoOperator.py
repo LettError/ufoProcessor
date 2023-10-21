@@ -471,6 +471,14 @@ class UFOOperator(object):
                 fonts.append((f, sourceDescriptor.location))
         return fonts
 
+    def usesFont(self, font):
+        # return True if font is used in this designspace.
+        for name, fontObj in self.fonts.items():
+            if font.path == fontObj.path:
+                # we don't need to know anything else
+                return True
+        return False
+
     def getCharacterMapping(self, discreteLocation=None):
         # return a unicode -> glyphname map for the default of the system or discreteLocation
         characterMap = {}
@@ -979,6 +987,15 @@ class UFOOperator(object):
         # return True if this location will be clipped.
         clipped = self.clipDesignLocation(location)
         return not clipped == location
+
+    def getAxisExtremes(self, axisRecord):
+        # return the axis values in designspace coordinates
+        if axisRecord.map is not None:
+            aD_minimum = aD.map_forward(axisRecord.minimum)
+            aD_maximum = aD.map_forward(axisRecord.maximum)
+            aD_default = aD.map_forward(axisRecord.default)
+            return aD_minimum, aD_default, aD_maximum
+        return axisRecord.minimum, axisRecord.default, axisRecord.maximum
 
     def clipDesignLocation(self, location):
         # return a copy of the design location without extrapolation
@@ -1672,3 +1689,9 @@ if __name__ == "__main__":
         print(f, testLoc == loc)
 
     print(doc.getOrderedDiscreteAxes())
+
+    for loc, fontObj in doc.fonts.items():
+        print("uses", fontObj.path, doc.usesFont(fontObj))
+
+    newFontObj = RFont()
+    print(doc.usesFont(newFontObj))
