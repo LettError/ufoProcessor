@@ -1067,8 +1067,10 @@ class UFOOperator(object):
         return ignoreSource, new
 
     @memoize
-    def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None):
-        """ Return a glyph mutator
+    def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None, asMathGlyph=True):
+        """ Return all source glyph objects.
+                + either as mathglyphs (for use in mutators)
+                + or source glyphs straight from the fonts
             decomposeComponents = True causes the source glyphs to be decomposed first
             before building the mutator. That gives you instances that do not depend
             on a complete font. If you're calculating previews for instance.
@@ -1153,10 +1155,11 @@ class UFOOperator(object):
                 location=filteredLocation,  # sourceDescriptor.location,
                 sourceName=sourceDescriptor.name,
             )
-            if hasattr(processThis, "toMathGlyph"):
-                processThis = processThis.toMathGlyph(strict=self.strict)
-            else:
-                processThis = self.mathGlyphClass(processThis, strict=self.strict)
+            if asMathGlyph:
+                if hasattr(processThis, "toMathGlyph"):
+                    processThis = processThis.toMathGlyph(strict=self.strict)
+                else:
+                    processThis = self.mathGlyphClass(processThis, strict=self.strict)
             continuous, discrete = self.splitLocation(loc)
             items.append((continuous, processThis, sourceInfo))
             empties.append((thisIsDefault, foundEmpty))
@@ -1441,11 +1444,12 @@ class UFOOperator(object):
         if not self.extrapolate:
             # Axis values are in userspace, so this needs to happen *after* clipping.
             continuousLocation = self.clipDesignLocation(continuousLocation)
-        # check if the discreteLocation is within limits
-        if not self.checkDiscreteAxisValues(discreteLocation):
-            if self.debug:
-                self.logger.info(f"\t\tmakeOneGlyph reports: {location} has illegal value for discrete location")
-            return None
+        # check if the discreteLocation, if there is one, is within limits
+        if discreteLocation is not None:
+            if not self.checkDiscreteAxisValues(discreteLocation):
+                if self.debug:
+                    self.logger.info(f"\t\tmakeOneGlyph reports: {location} has illegal value for discrete location")
+                return None
         previousModel = self.useVarlib
         self.useVarlib = useVarlib
         glyphInstanceObject = None
