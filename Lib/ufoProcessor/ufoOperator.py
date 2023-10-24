@@ -142,28 +142,6 @@ def inspectMemoizeCache():
     frequency.sort()
     return items, frequency
 
-
-def getUFOVersion(ufoPath):
-    # Peek into a ufo to read its format version.
-            # <?xml version="1.0" encoding="UTF-8"?>
-            # <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-            # <plist version="1.0">
-            # <dict>
-            #   <key>creator</key>
-            #   <string>org.robofab.ufoLib</string>
-            #   <key>formatVersion</key>
-            #   <integer>2</integer>
-            # </dict>
-            # </plist>
-    if os.path.splitext(ufoPath)[-1]==".ufoz":
-        # .ufoz has to be ufo3 or more. As we have no curreny UFO4 development, or even prototypes,
-        # this will be a safe assumption. Until it won't be.
-        return 3
-    metaInfoPath = os.path.join(ufoPath, "metainfo.plist")
-    with open(metaInfoPath, 'rb') as f:
-        p = plistlib.load(f)
-        return p.get('formatVersion')
-
 def getDefaultLayerName(f):
     # get the name of the default layer from a defcon font (outside RF) and from a fontparts font (outside and inside RF)
     if isinstance(f, defcon.objects.font.Font):
@@ -415,13 +393,15 @@ class UFOOperator(object):
                 sourceDescriptor.name = "source.%d" % i
             if sourceDescriptor.name not in self.fonts:
                 if os.path.exists(sourceDescriptor.path):
-                    f = self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
-                    thisLayerName = getDefaultLayerName(f)
-                    actions.append(f"loaded: {os.path.basename(sourceDescriptor.path)}, layer: {thisLayerName}, format: {getUFOVersion(sourceDescriptor.path)}, id: {id(f):X}")
+                    font = self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
+                    thisLayerName = getDefaultLayerName(font)
+                    if self.debug:
+                        actions.append(f"loaded: {os.path.basename(sourceDescriptor.path)}, layer: {thisLayerName}, format: {font.ufoFormatVersionTuple}, id: {id(font):X}")
                     names |= set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
-                    actions.append("source ufo not found at %s" % (sourceDescriptor.path))
+                    if self.debug:
+                        actions.append("source ufo not found at %s" % (sourceDescriptor.path))
         self.glyphNames = list(names)
         if self.debug:
             for item in actions:
@@ -431,10 +411,9 @@ class UFOOperator(object):
 
     def _logLoadedFonts(self):
         # dump info about the loaded fonts to the log
-        items = []
         self.logger.info("\t# font status:")
-        for name, fontObj in self.fonts.items():
-            self.logger.info(f"\t\tloaded: , id: {id(fontObj):X}, {os.path.basename(fontObj.path)}, format: {getUFOVersion(fontObj.path)}")
+        for name, font in self.fonts.items():
+            self.logger.info(f"\t\tloaded: , id: {id(font):X}, {os.path.basename(font.path)}, format: {font.ufoFormatVersionTuple}")
 
     def updateFonts(self, fontObjects):
         # this is to update the loaded fonts.
