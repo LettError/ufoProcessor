@@ -455,6 +455,7 @@ class UFOOperator(object):
         if fontObj is None:
             return False
         for name, otherFontObj in self.fonts.items():
+            if otherFontObj is None: continue
             if otherFontObj.path == fontObj.path:
                 # we don't need to know anything else
                 return True
@@ -540,6 +541,14 @@ class UFOOperator(object):
         return names
 
     # manipulate locations and axes
+    def findAllDefaults(self):
+        # collect all defaults for all discrete locations
+        defaults = []
+        for discreteLocation in self.getDiscreteLocations():
+            defaultSourceDescriptor = self.findDefault(discreteLocation=discreteLocation)
+            defaults.append(defaultSourceDescriptor)
+        return defaults
+
     def findDefault(self, discreteLocation=None):
         defaultDesignLocation = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
         sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
@@ -972,9 +981,9 @@ class UFOOperator(object):
     def getAxisExtremes(self, axisRecord):
         # return the axis values in designspace coordinates
         if axisRecord.map is not None:
-            aD_minimum = aD.map_forward(axisRecord.minimum)
-            aD_maximum = aD.map_forward(axisRecord.maximum)
-            aD_default = aD.map_forward(axisRecord.default)
+            aD_minimum = axisRecord.map_forward(axisRecord.minimum)
+            aD_maximum = axisRecord.map_forward(axisRecord.maximum)
+            aD_default = axisRecord.map_forward(axisRecord.default)
             return aD_minimum, aD_default, aD_maximum
         return axisRecord.minimum, axisRecord.default, axisRecord.maximum
 
@@ -1680,3 +1689,4 @@ if __name__ == "__main__":
 
     newFontObj = RFont()
     print(doc.usesFont(newFontObj))
+    print(doc.findAllDefaults())
