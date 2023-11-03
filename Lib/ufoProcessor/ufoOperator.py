@@ -262,9 +262,13 @@ class UFOOperator(object):
         return self.doc.addRuleDescriptor(**kwargs)
 
     def addSource(self, sourceDescriptor):
+        if sourceDescriptor.font is not None:
+            self.fonts[sourceDescriptor.name] = sourceDescriptor.font
         self.doc.addSource(sourceDescriptor)
 
     def addSourceDescriptor(self, **kwargs):
+        if "font" in kwargs:
+            self.fonts[kwargs["name"]] = kwargs["font"]
         return self.doc.addSourceDescriptor(**kwargs)
 
     def addInstance(self, instanceDescriptor):
