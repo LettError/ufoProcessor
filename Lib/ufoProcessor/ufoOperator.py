@@ -546,9 +546,12 @@ class UFOOperator(object):
 
     # manipulate locations and axes
     def findAllDefaults(self):
-        # collect all defaults for all discrete locations
+        # collect all default sourcedescriptors for all discrete locations
         defaults = []
-        for discreteLocation in self.getDiscreteLocations():
+        discreteSpaces = self.getDiscreteLocations()
+        if not discreteSpaces:
+            discreteSpaces = [None]
+        for discreteLocation in discreteSpaces:
             defaultSourceDescriptor = self.findDefault(discreteLocation=discreteLocation)
             defaults.append(defaultSourceDescriptor)
         return defaults
