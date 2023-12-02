@@ -1238,7 +1238,7 @@ class UFOOperator(object):
                 kerningObject.extractKerning(font)
 
         # @@ makeOneInfo
-        infoInstanceObject = self.makeOneInfo(fullDesignLocation, roundGeometry=False, clip=False)
+        infoInstanceObject = self.makeOneInfo(fullDesignLocation, roundGeometry=self.roundGeometry, clip=False)
         if infoInstanceObject is not None:
             infoInstanceObject.extractInfo(font.info)
             font.info.familyName = instanceDescriptor.familyName
