@@ -18,7 +18,7 @@ class DecomposePointPen(object):
         self.endPath = outPointPen.endPath
         self.addPoint = outPointPen.addPoint
 
-    def addComponent(self, baseGlyphName, transformation):
+    def addComponent(self, baseGlyphName, transformation, identifier=None, **kwargs):
         if baseGlyphName in self._glyphSet:
             baseGlyph = self._glyphSet[baseGlyphName]
             if transformation == _defaultTransformation:
