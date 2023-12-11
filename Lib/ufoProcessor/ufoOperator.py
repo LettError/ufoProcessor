@@ -525,9 +525,12 @@ class UFOOperator(object):
 
     def getGlyphDependencies(self, glyphName):
         dependencies = set()
-        for discreteLocation in self.getDiscreteLocations():
+        discreteLocation = self.getDiscreteLocations()
+        if not discreteLocation:
+            discreteLocation = [None]
+        for discreteLocation in discreteLocation:
             # this is expensive, should it be cached?
-            reverseComponentMap = self.getReverseComponentMapping()
+            reverseComponentMap = self.getReverseComponentMapping(discreteLocation)
             if glyphName not in reverseComponentMap:
                 return None
             for compName in reverseComponentMap[glyphName]:
@@ -548,10 +551,10 @@ class UFOOperator(object):
     def findAllDefaults(self):
         # collect all default sourcedescriptors for all discrete locations
         defaults = []
-        discreteSpaces = self.getDiscreteLocations()
-        if not discreteSpaces:
-            discreteSpaces = [None]
-        for discreteLocation in discreteSpaces:
+        discreteLocation = self.getDiscreteLocations()
+        if not discreteLocation:
+            discreteLocation = [None]
+        for discreteLocation in discreteLocation:
             defaultSourceDescriptor = self.findDefault(discreteLocation=discreteLocation)
             defaults.append(defaultSourceDescriptor)
         return defaults
