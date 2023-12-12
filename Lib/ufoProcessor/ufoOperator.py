@@ -1437,7 +1437,6 @@ class UFOOperator(object):
 
         Returns: a mathglyph, results are cached
         """
-        #print("makeOneGlyph", glyphName, location)
         continuousLocation, discreteLocation = self.splitLocation(location)
 
         bend=False  #
