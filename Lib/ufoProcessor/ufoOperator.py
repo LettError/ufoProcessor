@@ -1217,6 +1217,8 @@ class UFOOperator(object):
         """ Generate a font object for this instance """
         if doRules is not None:
             warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
+        if isinstance(instanceDescriptor, dict):
+            instanceDescriptor = self.doc.writerClass.instanceDescriptorClass(**instanceDescriptor)
         # hmm getFullDesignLocation does not support anisotropc locations?
         fullDesignLocation = instanceDescriptor.getFullDesignLocation(self.doc)
         anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(fullDesignLocation)
