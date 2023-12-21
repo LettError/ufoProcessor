@@ -868,12 +868,13 @@ class UFOOperator(object):
     def getInfoMutator(self, discreteLocation=None):
         """ Returns a info mutator for this discrete location """
         infoItems = []
-        if discreteLocation is not None:
+        foregroundLayers = self.collectForegroundLayerNames()
+        if discreteLocation is not None and discreteLocation is not {}:
             sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
         else:
             sources = self.doc.sources
         for sourceDescriptor in sources:
-            if sourceDescriptor.layerName is not None:
+            if sourceDescriptor.layerName not in foregroundLayers:
                 continue
             continuous, discrete = self.splitLocation(sourceDescriptor.location)
             loc = Location(continuous)
@@ -905,7 +906,6 @@ class UFOOperator(object):
                 if sourceDescriptor.layerName not in foregroundLayers:
                     continue
                 if not sourceDescriptor.muteKerning:
-                    # filter this XX @@
                     continuous, discrete = self.splitLocation(sourceDescriptor.location)
                     loc = Location(continuous)
                     sourceFont = self.fonts[sourceDescriptor.name]
@@ -1490,6 +1490,7 @@ class UFOOperator(object):
         if self.debug:
             self.logger.info(f"\t\t\tmakeOneInfo for {location}")
         bend = False
+        #@@
         anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(location)
         # so we can take the math object that comes out of the calculation
         infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
