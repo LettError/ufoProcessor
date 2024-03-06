@@ -9,7 +9,7 @@ from warnings import warn
 import collections
 import traceback
 
-from fontTools.designspaceLib import DesignSpaceDocument, processRules
+from fontTools.designspaceLib import DesignSpaceDocument, processRules, InstanceDescriptor
 from fontTools.designspaceLib.split import splitInterpolable, splitVariableFonts
 from fontTools.ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
 from fontTools.misc import plistlib
@@ -568,7 +568,6 @@ class UFOOperator(object):
         return None
 
     def findDefaultFont(self, discreteLocation=None):
-        # @@
         # A system without discrete axes should be able to
         # find a default here.
         defaultSourceDescriptor = self.findDefault(discreteLocation=discreteLocation)
@@ -1236,13 +1235,13 @@ class UFOOperator(object):
             locHorizontal, locVertical = self.splitAnisotropic(loc)
             if self.debug:
                 self.logger.info(f"\t\t\tAnisotropic location for \"{instanceDescriptor.name}\"\n\t\t\t{fullDesignLocation}")
-        # @@ makeOneKerning
+        # makeOneKerning
         if instanceDescriptor.kerning:
             kerningObject = self.makeOneKerning(fullDesignLocation, pairs=pairs)
             if kerningObject is not None:
                 kerningObject.extractKerning(font)
 
-        # @@ makeOneInfo
+        # makeOneInfo
         infoInstanceObject = self.makeOneInfo(fullDesignLocation, roundGeometry=self.roundGeometry, clip=False)
         if infoInstanceObject is not None:
             infoInstanceObject.extractInfo(font.info)
@@ -1342,6 +1341,40 @@ class UFOOperator(object):
         if self.debug:
             self.logger.info(f"\t\t\t{len(selectedGlyphNames)} glyphs added")
         return font
+
+    def locationToDescriptiveString(self, loc):
+        # make a nice descriptive string from the location
+        t = []
+        cl, dl = self.splitLocation(loc)
+        for continuousAxis in sorted(cl.keys()):
+            t.append(f'{continuousAxis}_{cl[continuousAxis]}')
+        for discreteAxis in sorted(dl.keys()):
+            t.append(f'{discreteAxis}_{dl[discreteAxis]}')
+        return '_'.join(t)
+
+    def makeOneInstance(self, location,
+            doRules=None,
+            glyphNames=None,
+            decomposeComponents=False,
+            pairs=None,
+            bend=False):
+        # make one instance for this location. This is a shortcut for making an
+        # instanceDescriptor. So it makes some assumptions about the font names.
+        # Otherwise all the geometry will be exactly what it needs to be.
+        continuousLocation, discreteLocation = self.splitLocation(location)
+        defaultFont = self.findDefaultFont(discreteLocation=discreteLocation)
+        if defaultFont is not None:
+            instanceFamilyName = defaultFont.info.familyName
+        else:
+            if self.doc.path is not None:
+                instanceFamilyName = os.path.splitext(self.doc.path)[0]
+            else:
+                instanceFamilyName = "UFOOperatorInstance"
+        tempInstanceDescriptor = InstanceDescriptor()
+        tempInstanceDescriptor.location = location
+        tempInstanceDescriptor.familyName = instanceFamilyName
+        tempInstanceDescriptor.styleName = self.locationToDescriptiveString(location)
+        return self.makeInstance(tempInstanceDescriptor, doRules=doRules, glyphNames=glyphNames, decomposeComponents=decomposeComponents, pairs=pairs, bend=bend)
 
     def randomLocation(self, extrapolate=0, anisotropic=False, roundValues=True, discreteLocation=None):
         """A good random location, for quick testing and entertainment
@@ -1490,7 +1523,6 @@ class UFOOperator(object):
         if self.debug:
             self.logger.info(f"\t\t\tmakeOneInfo for {location}")
         bend = False
-        #@@
         anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(location)
         # so we can take the math object that comes out of the calculation
         infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
@@ -1679,6 +1711,17 @@ if __name__ == "__main__":
     randomLocation = doc.randomLocation()
     kerns = doc.makeOneKerning(randomLocation, pairs=[('glyphOne', 'glyphTwo')])
     print('kerns', kerns.items(), "at randomLocation", randomLocation)
+
+    for i in range(30):
+        print('random location to string', doc.locationToDescriptiveString(doc.randomLocation()))
+
+    instanceFontObj = doc.makeOneInstance(randomLocation)
+    instanceFontName = doc.locationToDescriptiveString(randomLocation)
+    print("instanceFontObj", instanceFontObj)
+    testInstanceSavePath = f"../../Tests/ds5/makeOneInstanceOutput_{instanceFontObj.info.familyName}-{instanceFontName}.ufo"
+
+    instanceFontObj.save(testInstanceSavePath)
+
 
     # make font info for one location
     randomLocation = doc.randomLocation()
