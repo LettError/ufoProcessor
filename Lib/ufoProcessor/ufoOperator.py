@@ -487,6 +487,11 @@ class UFOOperator(object):
     def changed(self):
         # clears everything relating to this designspacedocument
         # the cache could contain more designspacedocument objects.
+        if _memoizeCache == None:
+            # it can happen that changed is called after we're already clearing out.
+            # Otherwise it _memoizeCache will be a dict.
+            # If it is no longer a dict, it will not have anything left in store.
+            return
         for key in list(_memoizeCache.keys()):
             funcName, data = key
             if data["self"] == self:
