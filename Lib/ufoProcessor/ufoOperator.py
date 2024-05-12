@@ -192,6 +192,8 @@ class UFOOperator(object):
         self.debug = debug
         self.logger = None
         self.extrapolate = extrapolate  # if true allow extrapolation
+        self.logger = None
+        self.doc = None
         if isinstance(pathOrObject, DesignSpaceDocument):
             self.doc = pathOrObject
         elif isinstance(pathOrObject, str):
@@ -199,7 +201,6 @@ class UFOOperator(object):
             self.doc.read(pathOrObject)
         else:
             self.doc = DesignSpaceDocument()
-
         if self.debug:
             docBaseName = os.path.splitext(self.doc.path)[0]
             logPath = f"{docBaseName}_log.txt"
@@ -1098,7 +1099,8 @@ class UFOOperator(object):
                     self.logger.info(note)
                 continue
             if glyphName in sourceDescriptor.mutedGlyphNames:
-                self.logger.info(f"\t\tglyphName {glyphName} is muted")
+                if self.debug:
+                    self.logger.info(f"\t\tglyphName {glyphName} is muted")
                 continue
             thisIsDefault = self.isLocalDefault(sourceDescriptor.location)
             ignoreSource, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
@@ -1241,6 +1243,7 @@ class UFOOperator(object):
             if self.debug:
                 self.logger.info(f"\t\t\tAnisotropic location for \"{instanceDescriptor.name}\"\n\t\t\t{fullDesignLocation}")
         # makeOneKerning
+        # discreteLocation ?
         if instanceDescriptor.kerning:
             kerningObject = self.makeOneKerning(fullDesignLocation, pairs=pairs)
             if kerningObject is not None:
