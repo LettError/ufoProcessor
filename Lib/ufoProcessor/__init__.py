@@ -115,7 +115,7 @@ def build(
         document.read(path)
         try:
             r = document.generateUFO(processRules=processRules)
-            results.append(r)
+            results.extend(r)
         except:
             if logger:
                 logger.exception("ufoProcessor error")
@@ -297,7 +297,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
         if self.default is None:
             # we need one to genenerate
             raise UFOProcessorError("Can't generate UFO from this designspace: no default font.", self)
-        v = 0
+        geneneratedUFOs = []
         for instanceDescriptor in self.instances:
             if instanceDescriptor.path is None:
                 continue
@@ -316,8 +316,9 @@ class DesignSpaceProcessor(DesignSpaceDocument):
                     self.problems.append("Can’t overwrite existing UFO%d with UFO%d." % (existingUFOFormatVersion, self.ufoVersion))
                     continue
             font.save(path, self.ufoVersion)
+            geneneratedUFOs.append(font)
             self.problems.append("Generated %s as UFO%d"%(os.path.basename(path), self.ufoVersion))
-        return True
+        return geneneratedUFOs
 
     def getSerializedAxes(self):
         return [a.serialize() for a in self.axes]
