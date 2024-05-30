@@ -1144,11 +1144,26 @@ class UFOOperator(object):
             if decomposeComponents:
                 # what about decomposing glyphs in a partial font?
                 temp = self.glyphClass()
-                p = temp.getPointPen()
-                dpp = DecomposePointPen(sourceLayer, p)
-                sourceGlyphObject.drawPoints(dpp)
+                sourceGlyphObject.drawPoints(
+                    DecomposePointPen(sourceLayer, temp.getPointPen())
+                )
                 temp.width = sourceGlyphObject.width
                 temp.name = sourceGlyphObject.name
+                temp.anchors = [dict(
+                    x=anchor.x,
+                    y=anchor.y,
+                    name=anchor.name,
+                    identifier=anchor.identifier,
+                    color=anchor.color
+                ) for anchor in sourceGlyphObject.anchors]
+                temp.guidelines = [dict(
+                    x=guideline.x,
+                    y=guideline.y,
+                    angle=guideline.angle,
+                    name=guideline.name,
+                    identifier=guideline.identifier,
+                    color=guideline.color
+                ) for guideline in sourceGlyphObject.guidelines]
                 processThis = temp
             else:
                 processThis = sourceGlyphObject
