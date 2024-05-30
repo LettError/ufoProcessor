@@ -38,7 +38,7 @@ def immutify(obj):
     # make an immutable version of this object.
     # assert immutify(10) == (10,)
     # assert immutify([10, 20, "a"]) == (10, 20, 'a')
-    # assert immutify(dict(foo="bar", world=["a", "b"])) == ('foo', ('bar',), 'world', ('a', 'b'))
+    # assert immutify(dict(aSet={1,2,3}, foo="bar", world=["a", "b"])) == ('foo', ('bar',), 'world', ('a', 'b'))
     hashValues = []
     if isinstance(obj, dict):
         hashValues.append(
@@ -48,7 +48,7 @@ def immutify(obj):
         )
     elif isinstance(obj, set):
         for value in sorted(obj):
-            hashValues.extend(immutify(value))
+            hashValues.append(immutify(value))
     elif isinstance(obj, (list, tuple)):
         for value in obj:
             hashValues.append(immutify(value))
