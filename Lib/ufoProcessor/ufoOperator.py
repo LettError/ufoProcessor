@@ -186,6 +186,7 @@ class UFOOperator(object):
         self.useVarlib = useVarlib
         self._fontsLoaded = False
         self.fonts = {}
+        self.tempLib = {}
         self.roundGeometry = False
         self.mutedAxisNames = None    # list of axisname that need to be muted
         self.strict = strict
