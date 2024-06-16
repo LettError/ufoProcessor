@@ -1304,6 +1304,7 @@ class UFOOperator(object):
             font.info.postscriptFontName = instanceDescriptor.postScriptFontName # yikes, note the differences in capitalisation..
             font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
             font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
+
         # add italicSlantOffset here
         italicSlantOffsetMutator = self.getItalicSlantOffsetMutator(discreteLocation=discreteLocation)
         if italicSlantOffsetMutator:
@@ -1314,6 +1315,8 @@ class UFOOperator(object):
                 # otherwise it will always add it? Not sure?
                 font.lib[self.italicSlantOffsetLibKey] = italicSlantOffsetValue
 
+        # don't override these keys in the lib (leavinf room for more)
+        skipTheseLibKeys = [self.italicSlantOffsetLibKey]
         defaultSourceFont = self.findDefaultFont()
         # found a default source font
         if defaultSourceFont:
@@ -1321,6 +1324,7 @@ class UFOOperator(object):
             self._copyFontInfo(defaultSourceFont.info, font.info)
             # copy lib
             for key, value in defaultSourceFont.lib.items():
+                if key in skipTheseLibKeys: continue
                 font.lib[key] = value
             # copy groups
             for key, value in defaultSourceFont.groups.items():
