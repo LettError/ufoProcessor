@@ -181,6 +181,9 @@ class UFOOperator(object):
     mathGlyphClass = MathGlyph
     mathKerningClass = MathKerning
 
+    # RF italic slant offset lib key
+    italicSlantOffsetLibKey = "com.typemytype.robofont.italicSlantOffset"
+
     def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, extrapolate=False, strict=False, debug=False):
         self.ufoVersion = ufoVersion
         self.useVarlib = useVarlib
@@ -896,6 +899,33 @@ class UFOOperator(object):
         return self._infoMutator
 
     @memoize
+    def getItalicSlantOffsetMutator(self, discreteLocation=None):
+        """ Returns an italic slant offset mutator for this discrete location.
+            This will build on this value in lib: com.typemytype.robofont.italicSlantOffset"
+            If there is no entry in the lib, it will default to 0.
+        """
+        italicSlantOffsetItems = []
+        allValues = {}
+        foregroundLayers = self.collectForegroundLayerNames()
+        if discreteLocation is not None and discreteLocation is not {}:
+            sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
+        else:
+            sources = self.doc.sources
+        for sourceDescriptor in sources:
+            if sourceDescriptor.layerName not in foregroundLayers:
+                continue
+            continuous, discrete = self.splitLocation(sourceDescriptor.location)
+            loc = Location(continuous)
+            sourceFont = self.fonts[sourceDescriptor.name]
+            if sourceFont is None:
+                continue
+            italicSlantOffsetValue = sourceFont.lib.get(self.italicSlantOffsetLibKey, 0)
+            italicSlantOffsetItems.append((loc, italicSlantOffsetValue))
+        infoBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
+        bias, self._italicSlantOffsetMutator = self.getVariationModel(italicSlantOffsetItems, axes=self.getSerializedAxes(), bias=infoBias)
+        return self._italicSlantOffsetMutator
+
+    @memoize
     def getKerningMutator(self, pairs=None, discreteLocation=None):
         """ Return a kerning mutator, collect the sources, build mathGlyphs.
             If no pairs are given: calculate the whole table.
@@ -1274,6 +1304,15 @@ class UFOOperator(object):
             font.info.postscriptFontName = instanceDescriptor.postScriptFontName # yikes, note the differences in capitalisation..
             font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
             font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
+        # add italicSlantOffset here
+        italicSlantOffsetMutator = self.getItalicSlantOffsetMutator(discreteLocation=discreteLocation)
+        if italicSlantOffsetMutator:
+            # use locHorizontal in case this was anisotropic.
+            italicSlantOffsetValue = italicSlantOffsetMutator.makeInstance(locHorizontal)
+            if italicSlantOffsetValue:
+                # only add the value to the lib if it is not 0.
+                # otherwise it will always add it? Not sure?
+                font.lib[self.italicSlantOffsetLibKey] = italicSlantOffsetValue
 
         defaultSourceFont = self.findDefaultFont()
         # found a default source font
@@ -1769,3 +1808,10 @@ if __name__ == "__main__":
     newFontObj = RFont()
     print(doc.usesFont(newFontObj))
     print(doc.findAllDefaults())
+
+    # test the getItalicSlantOffsetMutator
+    # the ds5 test fonts have a value for the italic slant offset.
+    for discreteLocation in doc.getDiscreteLocations():
+        m = doc.getItalicSlantOffsetMutator(discreteLocation=discreteLocation)
+        randomLocation = doc.randomLocation()
+        print('italicslantoffset at', randomLocation, m.makeInstance(randomLocation))
