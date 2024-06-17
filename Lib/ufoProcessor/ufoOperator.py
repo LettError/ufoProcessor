@@ -190,6 +190,7 @@ class UFOOperator(object):
         self._fontsLoaded = False
         self.fonts = {}
         self.tempLib = {}
+        self.libKeysForProcessing = [self.italicSlantOffsetLibKey]
         self.roundGeometry = False
         self.mutedAxisNames = None    # list of axisname that need to be muted
         self.strict = strict
@@ -899,12 +900,11 @@ class UFOOperator(object):
         return self._infoMutator
 
     @memoize
-    def getItalicSlantOffsetMutator(self, discreteLocation=None):
-        """ Returns an italic slant offset mutator for this discrete location.
-            This will build on this value in lib: com.typemytype.robofont.italicSlantOffset"
+    def getLibEntryMutator(self, discreteLocation=None):
+        """ Returns a mutator for selected lib keys store in self.libKeysForProcessing
             If there is no entry in the lib, it will default to 0.
         """
-        italicSlantOffsetItems = []
+        libMathItems = []
         allValues = {}
         foregroundLayers = self.collectForegroundLayerNames()
         if discreteLocation is not None and discreteLocation is not {}:
@@ -919,11 +919,13 @@ class UFOOperator(object):
             sourceFont = self.fonts[sourceDescriptor.name]
             if sourceFont is None:
                 continue
-            italicSlantOffsetValue = sourceFont.lib.get(self.italicSlantOffsetLibKey, 0)
-            italicSlantOffsetItems.append((loc, italicSlantOffsetValue))
-        infoBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
-        bias, self._italicSlantOffsetMutator = self.getVariationModel(italicSlantOffsetItems, axes=self.getSerializedAxes(), bias=infoBias)
-        return self._italicSlantOffsetMutator
+            mathDict = Location()   # we're using this for its math dict skills
+            for libKey in self.libKeysForProcessing:
+                mathDict[libKey] = sourceFont.lib.get(libKey, 0)
+            libMathItems.append((loc, mathDict))
+        libMathBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
+        bias, libMathMutator = self.getVariationModel(libMathItems, axes=self.getSerializedAxes(), bias=libMathBias)
+        return libMathMutator
 
     @memoize
     def getKerningMutator(self, pairs=None, discreteLocation=None):
@@ -1306,14 +1308,18 @@ class UFOOperator(object):
             font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
 
         # add italicSlantOffset here
-        italicSlantOffsetMutator = self.getItalicSlantOffsetMutator(discreteLocation=discreteLocation)
-        if italicSlantOffsetMutator:
+        libMathMutator = self.getLibEntryMutator(discreteLocation=discreteLocation)
+        if libMathMutator:
             # use locHorizontal in case this was anisotropic.
-            italicSlantOffsetValue = italicSlantOffsetMutator.makeInstance(locHorizontal)
-            if italicSlantOffsetValue:
-                # only add the value to the lib if it is not 0.
-                # otherwise it will always add it? Not sure?
-                font.lib[self.italicSlantOffsetLibKey] = italicSlantOffsetValue
+            # remember: libMathDict is a Location object,
+            # each key in the location is the libKey
+            # each value is the calculated value
+            libMathDict = libMathMutator.makeInstance(locHorizontal)
+            if libMathDict:
+                for libKey, mutatedValue in libMathDict.items():
+                    # only add the value to the lib if it is not 0.
+                    # otherwise it will always add it? Not sure?
+                    font.lib[libKey] = mutatedValue
 
         # don't override these keys in the lib (leavinf room for more)
         skipTheseLibKeys = [self.italicSlantOffsetLibKey]
@@ -1813,9 +1819,9 @@ if __name__ == "__main__":
     print(doc.usesFont(newFontObj))
     print(doc.findAllDefaults())
 
-    # test the getItalicSlantOffsetMutator
+    # test the getLibEntryMutator
     # the ds5 test fonts have a value for the italic slant offset.
     for discreteLocation in doc.getDiscreteLocations():
-        m = doc.getItalicSlantOffsetMutator(discreteLocation=discreteLocation)
+        m = doc.getLibEntryMutator(discreteLocation=discreteLocation)
         randomLocation = doc.randomLocation()
         print('italicslantoffset at', randomLocation, m.makeInstance(randomLocation))
