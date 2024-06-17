@@ -1307,22 +1307,25 @@ class UFOOperator(object):
             font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
             font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
 
-        # add italicSlantOffset here
+        # calculate selected lib key values here
         libMathMutator = self.getLibEntryMutator(discreteLocation=discreteLocation)
+        if self.debug:
+            self.logger.info(f"\t\t\tlibMathMutator \"{libMathMutator}\"\n\t\t\t{discreteLocation}")
         if libMathMutator:
             # use locHorizontal in case this was anisotropic.
             # remember: libMathDict is a Location object,
             # each key in the location is the libKey
             # each value is the calculated value
             libMathDict = libMathMutator.makeInstance(locHorizontal)
+            print("libMathDict", locHorizontal, libMathDict)
             if libMathDict:
                 for libKey, mutatedValue in libMathDict.items():
                     # only add the value to the lib if it is not 0.
                     # otherwise it will always add it? Not sure?
                     font.lib[libKey] = mutatedValue
+                if self.debug:
+                    self.logger.info(f"\t\t\tlibKey \"{libKey}: {mutatedValue}")
 
-        # don't override these keys in the lib (leavinf room for more)
-        skipTheseLibKeys = [self.italicSlantOffsetLibKey]
         defaultSourceFont = self.findDefaultFont()
         # found a default source font
         if defaultSourceFont:
@@ -1330,7 +1333,8 @@ class UFOOperator(object):
             self._copyFontInfo(defaultSourceFont.info, font.info)
             # copy lib
             for key, value in defaultSourceFont.lib.items():
-                if key in skipTheseLibKeys: continue
+                # don't overwrite the keys we calculated
+                if key in self.libKeysForProcessing: continue
                 font.lib[key] = value
             # copy groups
             for key, value in defaultSourceFont.groups.items():
@@ -1716,6 +1720,14 @@ if __name__ == "__main__":
     else:
         doc = UFOOperator(ds5Path, useVarlib=True, debug=debug)
         doc.loadFonts()
+
+
+    # test the getLibEntryMutator
+    testLibMathKey = 'com.letterror.ufoOperator.libMathTestValue'
+    doc.libKeysForProcessing.append(testLibMathKey)
+    print('processing these keys', doc.libKeysForProcessing)
+
+
     if makeUFOs:
         doc.generateUFOs()
     randomLocation = doc.randomLocation()
@@ -1819,7 +1831,6 @@ if __name__ == "__main__":
     print(doc.usesFont(newFontObj))
     print(doc.findAllDefaults())
 
-    # test the getLibEntryMutator
     # the ds5 test fonts have a value for the italic slant offset.
     for discreteLocation in doc.getDiscreteLocations():
         m = doc.getLibEntryMutator(discreteLocation=discreteLocation)
