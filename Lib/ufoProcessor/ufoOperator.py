@@ -902,7 +902,8 @@ class UFOOperator(object):
     @memoize
     def getLibEntryMutator(self, discreteLocation=None):
         """ Returns a mutator for selected lib keys store in self.libKeysForProcessing
-            If there is no entry in the lib, it will default to 0.
+            If there is no entry in the lib, it will ignore the source
+            If there are no libkeys, it will return None.
         """
         libMathItems = []
         allValues = {}
@@ -912,8 +913,8 @@ class UFOOperator(object):
         else:
             sources = self.doc.sources
         for sourceDescriptor in sources:
-            if sourceDescriptor.layerName not in foregroundLayers:
-                continue
+            #if sourceDescriptor.layerName not in foregroundLayers:
+            #    continue
             continuous, discrete = self.splitLocation(sourceDescriptor.location)
             loc = Location(continuous)
             sourceFont = self.fonts[sourceDescriptor.name]
@@ -921,8 +922,13 @@ class UFOOperator(object):
                 continue
             mathDict = Location()   # we're using this for its math dict skills
             for libKey in self.libKeysForProcessing:
-                mathDict[libKey] = sourceFont.lib.get(libKey, 0)
+                if libKey in sourceFont.lib:
+                    # only add values we know
+                    mathDict[libKey] = sourceFont.lib[libKey]
             libMathItems.append((loc, mathDict))
+        if not libMathItems:
+            # no keys, no mutator.
+            return None
         libMathBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
         bias, libMathMutator = self.getVariationModel(libMathItems, axes=self.getSerializedAxes(), bias=libMathBias)
         return libMathMutator
@@ -1317,14 +1323,14 @@ class UFOOperator(object):
             # each key in the location is the libKey
             # each value is the calculated value
             libMathDict = libMathMutator.makeInstance(locHorizontal)
-            print("libMathDict", locHorizontal, libMathDict)
+            #print("libMathDict", locHorizontal, libMathDict)
             if libMathDict:
                 for libKey, mutatedValue in libMathDict.items():
                     # only add the value to the lib if it is not 0.
                     # otherwise it will always add it? Not sure?
                     font.lib[libKey] = mutatedValue
                 if self.debug:
-                    self.logger.info(f"\t\t\tlibKey \"{libKey}: {mutatedValue}")
+                    self.logger.info(f"\t\t\tlibMathMutator: libKey \"{libKey}: {mutatedValue}")
 
         defaultSourceFont = self.findDefaultFont()
         # found a default source font
@@ -1834,5 +1840,8 @@ if __name__ == "__main__":
     # the ds5 test fonts have a value for the italic slant offset.
     for discreteLocation in doc.getDiscreteLocations():
         m = doc.getLibEntryMutator(discreteLocation=discreteLocation)
-        randomLocation = doc.randomLocation()
-        print('italicslantoffset at', randomLocation, m.makeInstance(randomLocation))
+        if m:
+            randomLocation = doc.randomLocation()
+            print('italicslantoffset at', randomLocation, m.makeInstance(randomLocation))
+        else:
+            print("getLibEntryMutator() returned None.")
