@@ -181,12 +181,16 @@ class UFOOperator(object):
     mathGlyphClass = MathGlyph
     mathKerningClass = MathKerning
 
+    # RF italic slant offset lib key
+    italicSlantOffsetLibKey = "com.typemytype.robofont.italicSlantOffset"
+
     def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, extrapolate=False, strict=False, debug=False):
         self.ufoVersion = ufoVersion
         self.useVarlib = useVarlib
         self._fontsLoaded = False
         self.fonts = {}
         self.tempLib = {}
+        self.libKeysForProcessing = [self.italicSlantOffsetLibKey]
         self.roundGeometry = False
         self.mutedAxisNames = None    # list of axisname that need to be muted
         self.strict = strict
@@ -896,6 +900,40 @@ class UFOOperator(object):
         return self._infoMutator
 
     @memoize
+    def getLibEntryMutator(self, discreteLocation=None):
+        """ Returns a mutator for selected lib keys store in self.libKeysForProcessing
+            If there is no entry in the lib, it will ignore the source
+            If there are no libkeys, it will return None.
+        """
+        libMathItems = []
+        allValues = {}
+        foregroundLayers = self.collectForegroundLayerNames()
+        if discreteLocation is not None and discreteLocation is not {}:
+            sources = self.findSourceDescriptorsForDiscreteLocation(discreteLocation)
+        else:
+            sources = self.doc.sources
+        for sourceDescriptor in sources:
+            #if sourceDescriptor.layerName not in foregroundLayers:
+            #    continue
+            continuous, discrete = self.splitLocation(sourceDescriptor.location)
+            loc = Location(continuous)
+            sourceFont = self.fonts[sourceDescriptor.name]
+            if sourceFont is None:
+                continue
+            mathDict = Location()   # we're using this for its math dict skills
+            for libKey in self.libKeysForProcessing:
+                if libKey in sourceFont.lib:
+                    # only add values we know
+                    mathDict[libKey] = sourceFont.lib[libKey]
+            libMathItems.append((loc, mathDict))
+        if not libMathItems:
+            # no keys, no mutator.
+            return None
+        libMathBias = self.newDefaultLocation(bend=True, discreteLocation=discreteLocation)
+        bias, libMathMutator = self.getVariationModel(libMathItems, axes=self.getSerializedAxes(), bias=libMathBias)
+        return libMathMutator
+
+    @memoize
     def getKerningMutator(self, pairs=None, discreteLocation=None):
         """ Return a kerning mutator, collect the sources, build mathGlyphs.
             If no pairs are given: calculate the whole table.
@@ -1275,6 +1313,25 @@ class UFOOperator(object):
             font.info.styleMapFamilyName = instanceDescriptor.styleMapFamilyName
             font.info.styleMapStyleName = instanceDescriptor.styleMapStyleName
 
+        # calculate selected lib key values here
+        libMathMutator = self.getLibEntryMutator(discreteLocation=discreteLocation)
+        if self.debug:
+            self.logger.info(f"\t\t\tlibMathMutator \"{libMathMutator}\"\n\t\t\t{discreteLocation}")
+        if libMathMutator:
+            # use locHorizontal in case this was anisotropic.
+            # remember: libMathDict is a Location object,
+            # each key in the location is the libKey
+            # each value is the calculated value
+            libMathDict = libMathMutator.makeInstance(locHorizontal)
+            #print("libMathDict", locHorizontal, libMathDict)
+            if libMathDict:
+                for libKey, mutatedValue in libMathDict.items():
+                    # only add the value to the lib if it is not 0.
+                    # otherwise it will always add it? Not sure?
+                    font.lib[libKey] = mutatedValue
+                if self.debug:
+                    self.logger.info(f"\t\t\tlibMathMutator: libKey \"{libKey}: {mutatedValue}")
+
         defaultSourceFont = self.findDefaultFont()
         # found a default source font
         if defaultSourceFont:
@@ -1282,6 +1339,8 @@ class UFOOperator(object):
             self._copyFontInfo(defaultSourceFont.info, font.info)
             # copy lib
             for key, value in defaultSourceFont.lib.items():
+                # don't overwrite the keys we calculated
+                if key in self.libKeysForProcessing: continue
                 font.lib[key] = value
             # copy groups
             for key, value in defaultSourceFont.groups.items():
@@ -1667,6 +1726,14 @@ if __name__ == "__main__":
     else:
         doc = UFOOperator(ds5Path, useVarlib=True, debug=debug)
         doc.loadFonts()
+
+
+    # test the getLibEntryMutator
+    testLibMathKey = 'com.letterror.ufoOperator.libMathTestValue'
+    doc.libKeysForProcessing.append(testLibMathKey)
+    print('processing these keys', doc.libKeysForProcessing)
+
+
     if makeUFOs:
         doc.generateUFOs()
     randomLocation = doc.randomLocation()
@@ -1769,3 +1836,12 @@ if __name__ == "__main__":
     newFontObj = RFont()
     print(doc.usesFont(newFontObj))
     print(doc.findAllDefaults())
+
+    # the ds5 test fonts have a value for the italic slant offset.
+    for discreteLocation in doc.getDiscreteLocations():
+        m = doc.getLibEntryMutator(discreteLocation=discreteLocation)
+        if m:
+            randomLocation = doc.randomLocation()
+            print('italicslantoffset at', randomLocation, m.makeInstance(randomLocation))
+        else:
+            print("getLibEntryMutator() returned None.")
