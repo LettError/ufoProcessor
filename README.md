@@ -1,4 +1,3 @@
-[![Travis](https://travis-ci.org/LettError/ufoProcessor.svg?branch=master)](https://travis-ci.org/LettError/ufoProcessor)
 [![PyPI](https://img.shields.io/pypi/v/ufoprocessor.svg)](https://pypi.org/project/ufoprocessor)
 
 # ufoProcessor
