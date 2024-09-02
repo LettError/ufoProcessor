@@ -1332,7 +1332,7 @@ class UFOOperator(object):
                 if self.debug:
                     self.logger.info(f"\t\t\tlibMathMutator: libKey \"{libKey}: {mutatedValue}")
 
-        defaultSourceFont = self.findDefaultFont()
+        defaultSourceFont = self.findDefaultFont(discreteLocation=discreteLocation)
         # found a default source font
         if defaultSourceFont:
             # copy info
