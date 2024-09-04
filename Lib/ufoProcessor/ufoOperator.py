@@ -862,7 +862,7 @@ class UFOOperator(object):
                 self.logger.info(f"\t\t{os.path.basename(instanceDescriptor.path)}")
 
             instanceFolder = os.path.dirname(instanceDescriptor.path)
-            if not os.path.exists(instanceFolder):
+            if instanceFolder and not os.path.exists(instanceFolder):
                 os.makedirs(instanceFolder)
             font.save(instanceDescriptor.path)
             generatedFontPaths.append(instanceDescriptor.path)
