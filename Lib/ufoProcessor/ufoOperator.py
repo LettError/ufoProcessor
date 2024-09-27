@@ -388,12 +388,12 @@ class UFOOperator(object):
 
     # loading and updating fonts
     def loadFonts(self, reload=False):
+        self.glyphNames = list({glyphname for font in self.fonts.values() for glyphname in font.keys()})
         # Load the fonts and find the default candidate based on the info flag
         if self._fontsLoaded and not reload:
             if self.debug:
                 self.logger.info("\t\t-- loadFonts requested, but fonts are loaded already and no reload requested")
             return
-        names = set()
         actions = []
         if self.debug:
             self.logger.info("## loadFonts")
@@ -407,12 +407,10 @@ class UFOOperator(object):
                     thisLayerName = getDefaultLayerName(font)
                     if self.debug:
                         actions.append(f"loaded: {os.path.basename(sourceDescriptor.path)}, layer: {thisLayerName}, format: {font.ufoFormatVersionTuple}, id: {id(font):X}")
-                    names |= set(self.fonts[sourceDescriptor.name].keys())
                 else:
                     self.fonts[sourceDescriptor.name] = None
                     if self.debug:
                         actions.append("source ufo not found at %s" % (sourceDescriptor.path))
-        self.glyphNames = list(names)
         if self.debug:
             for item in actions:
                 self.logger.infoItem(item)
