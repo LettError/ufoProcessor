@@ -1294,6 +1294,7 @@ class UFOOperator(object):
             locHorizontal, locVertical = self.splitAnisotropic(loc)
             if self.debug:
                 self.logger.info(f"\t\t\tAnisotropic location for \"{instanceDescriptor.name}\"\n\t\t\t{fullDesignLocation}")
+
         # makeOneKerning
         # discreteLocation ?
         if instanceDescriptor.kerning:
@@ -1321,7 +1322,6 @@ class UFOOperator(object):
             # each key in the location is the libKey
             # each value is the calculated value
             libMathDict = libMathMutator.makeInstance(locHorizontal)
-            #print("libMathDict", locHorizontal, libMathDict)
             if libMathDict:
                 for libKey, mutatedValue in libMathDict.items():
                     # only add the value to the lib if it is not 0.
@@ -1657,6 +1657,8 @@ class UFOOperator(object):
                 # extract the object later
                 if self.debug:
                     self.logger.info(f"\t\t\t\t{len(kerningObject.keys())} kerning pairs added")
+        if self.roundGeometry:
+            kerningObject.round()
         if self.debug:
             if kerningObject is not None:
                 self.logger.info(f"\t\t\t\tmakeOneKerning outcome: {kerningObject.items()}")
