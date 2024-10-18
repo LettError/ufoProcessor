@@ -1433,6 +1433,12 @@ class UFOOperator(object):
             t.append(f'{discreteAxis}_{dl[discreteAxis]}')
         return '_'.join(t)
 
+    def pathForInstance(self, instanceDescriptor):
+        # generate the complete path for this instance descriptor.
+        if self.path is not None and instanceDescriptor.filename is not None:
+            return os.path.abspath(os.path.join(os.path.dirname(self.path), instanceDescriptor.filename))
+        return None
+
     def makeOneInstance(self, location,
             doRules=None,
             glyphNames=None,
@@ -1731,7 +1737,6 @@ if __name__ == "__main__":
     doc.libKeysForProcessing.append(testLibMathKey)
     print('processing these keys', doc.libKeysForProcessing)
 
-
     if makeUFOs:
         doc.generateUFOs()
     randomLocation = doc.randomLocation()
@@ -1843,3 +1848,6 @@ if __name__ == "__main__":
             print('italicslantoffset at', randomLocation, m.makeInstance(randomLocation))
         else:
             print("getLibEntryMutator() returned None.")
+
+    for instanceDescriptor in doc.instances:
+        print('path for instancedescriptor', doc.pathForInstance(instanceDescriptor))
