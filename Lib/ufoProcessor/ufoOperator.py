@@ -1368,12 +1368,9 @@ class UFOOperator(object):
         if 'public.glyphOrder' not in font.lib.keys():
             # should be the glyphorder from the default, yes?
             font.lib['public.glyphOrder'] = selectedGlyphNames
+        # remove skippable glyphs
         toSkip = self.collectSkippedGlyphs()
-        skipped = []
-        for name in selectedGlyphNames:
-            if name not in toSkip:
-                skipped.append(name)
-        selectedGlyphNames = skipped
+        selectedGlyphNames = [name for name in selectedGlyphNames if name not in toSkip]
         for glyphName in selectedGlyphNames:
             glyphMutator, unicodes = self.getGlyphMutator(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
             if glyphMutator is None:
