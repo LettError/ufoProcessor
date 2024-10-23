@@ -1266,6 +1266,15 @@ class UFOOperator(object):
             locHorizontal, locVertical = self.splitAnisotropic(loc)
         return anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical
 
+    def collectSkippedGlyphs(self):
+        # return a list of all the glyphnames listed in public.skipExportGlyphs
+        names = []
+        for fontPath, fontObj in self.fonts.items():
+            for name in fontObj.lib.get('public.skipExportGlyphs', []):
+                if name not in names:
+                    names.append(name)
+        return names
+
     def makeInstance(self, instanceDescriptor,
             doRules=None,
             glyphNames=None,
@@ -1359,7 +1368,12 @@ class UFOOperator(object):
         if 'public.glyphOrder' not in font.lib.keys():
             # should be the glyphorder from the default, yes?
             font.lib['public.glyphOrder'] = selectedGlyphNames
-
+        toSkip = self.collectSkippedGlyphs()
+        skipped = []
+        for name in selectedGlyphNames:
+            if name not in toSkip:
+                skipped.append(name)
+        selectedGlyphNames = skipped
         for glyphName in selectedGlyphNames:
             glyphMutator, unicodes = self.getGlyphMutator(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
             if glyphMutator is None:
@@ -1853,3 +1867,5 @@ if __name__ == "__main__":
 
     for instanceDescriptor in doc.instances:
         print('path for instancedescriptor', doc.pathForInstance(instanceDescriptor))
+
+    doc.collectSkippedGlyphs()
