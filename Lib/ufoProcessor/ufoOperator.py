@@ -593,6 +593,7 @@ class UFOOperator(object):
 
     def splitLocation(self, location):
         # split a location in a continouous and a discrete part
+        # Note: discrete can be None
         discreteAxes = [a.name for a in self.getOrderedDiscreteAxes()]
         continuous = {}
         discrete = {}
@@ -1443,12 +1444,14 @@ class UFOOperator(object):
 
     def locationToDescriptiveString(self, loc):
         # make a nice descriptive string from the location
+        # Check if the discrete location is None.
         t = []
         cl, dl = self.splitLocation(loc)
         for continuousAxis in sorted(cl.keys()):
             t.append(f'{continuousAxis}_{cl[continuousAxis]}')
-        for discreteAxis in sorted(dl.keys()):
-            t.append(f'{discreteAxis}_{dl[discreteAxis]}')
+        if dl is not None:
+            for discreteAxis in sorted(dl.keys()):
+                t.append(f'{discreteAxis}_{dl[discreteAxis]}')
         return '_'.join(t)
 
     def pathForInstance(self, instanceDescriptor):
