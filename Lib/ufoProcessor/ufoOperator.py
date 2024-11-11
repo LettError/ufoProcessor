@@ -195,7 +195,6 @@ class UFOOperator(object):
         self.mutedAxisNames = None    # list of axisname that need to be muted
         self.strict = strict
         self.debug = debug
-        self.logger = None
         self.extrapolate = extrapolate  # if true allow extrapolation
         self.logger = None
         self.doc = None
@@ -207,17 +206,22 @@ class UFOOperator(object):
         else:
             self.doc = DesignSpaceDocument()
         if self.debug:
-            docBaseName = os.path.splitext(self.doc.path)[0]
-            logPath = f"{docBaseName}_log.txt"
-            self.logger = Logger(path=logPath, rootDirectory=None)
-            self.logger.time()
-            self.logger.info(f"## {self.doc.path}")
-            self.logger.info(f"\tUFO version: {self.ufoVersion}")
-            self.logger.info(f"\tround Geometry: {self.roundGeometry}")
-            if self.useVarlib:
-                self.logger.info(f"\tinterpolating with varlib")
-            else:
-                self.logger.info(f"\tinterpolating with mutatorMath")
+            self.startLog()
+
+    def startLog(self):
+        # so we can call it later
+        self.debug = True
+        docBaseName = os.path.splitext(self.doc.path)[0]
+        logPath = f"{docBaseName}_log.txt"
+        self.logger = Logger(path=logPath, rootDirectory=None)
+        self.logger.time()
+        self.logger.info(f"## {self.doc.path}")
+        self.logger.info(f"\tUFO version: {self.ufoVersion}")
+        self.logger.info(f"\tround Geometry: {self.roundGeometry}")
+        if self.useVarlib:
+            self.logger.info(f"\tinterpolating with varlib")
+        else:
+            self.logger.info(f"\tinterpolating with mutatorMath")
 
     def _instantiateFont(self, path):
         """ Return a instance of a font object with all the given subclasses"""
@@ -388,11 +392,11 @@ class UFOOperator(object):
 
     # loading and updating fonts
     def loadFonts(self, reload=False):
-        self.glyphNames = list({glyphname for font in self.fonts.values() for glyphname in font.keys()})
         # Load the fonts and find the default candidate based on the info flag
+        self.glyphNames = list({glyphname for font in self.fonts.values() for glyphname in font.keys()})
         if self._fontsLoaded and not reload:
             if self.debug:
-                self.logger.info("\t\t-- loadFonts requested, but fonts are loaded already and no reload requested")
+                self.logger.info("\t\t-- loadFonts called, but fonts are loaded already and no reload requested")
             return
         actions = []
         if self.debug:
@@ -589,6 +593,7 @@ class UFOOperator(object):
 
     def splitLocation(self, location):
         # split a location in a continouous and a discrete part
+        # Note: discrete can be None
         discreteAxes = [a.name for a in self.getOrderedDiscreteAxes()]
         continuous = {}
         discrete = {}
@@ -1266,6 +1271,17 @@ class UFOOperator(object):
             locHorizontal, locVertical = self.splitAnisotropic(loc)
         return anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical
 
+    def collectSkippedGlyphs(self):
+        # return a list of all the glyphnames listed in public.skipExportGlyphs
+        names = []
+        for fontPath, fontObj in self.fonts.items():
+            for name in fontObj.lib.get('public.skipExportGlyphs', []):
+                if name not in names:
+                    names.append(name)
+        if self.debug:
+            self.logger.info(f"collectSkippedGlyphs: {names}")
+        return names
+
     def makeInstance(self, instanceDescriptor,
             doRules=None,
             glyphNames=None,
@@ -1280,6 +1296,7 @@ class UFOOperator(object):
         # hmm getFullDesignLocation does not support anisotropc locations?
         fullDesignLocation = instanceDescriptor.getFullDesignLocation(self.doc)
         anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(fullDesignLocation)
+        self.loadFonts()
 
         if not self.extrapolate:
            # Axis values are in userspace, so this needs to happen before bending
@@ -1359,7 +1376,9 @@ class UFOOperator(object):
         if 'public.glyphOrder' not in font.lib.keys():
             # should be the glyphorder from the default, yes?
             font.lib['public.glyphOrder'] = selectedGlyphNames
-
+        # remove skippable glyphs
+        toSkip = self.collectSkippedGlyphs()
+        selectedGlyphNames = [name for name in selectedGlyphNames if name not in toSkip]
         for glyphName in selectedGlyphNames:
             glyphMutator, unicodes = self.getGlyphMutator(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
             if glyphMutator is None:
@@ -1425,12 +1444,14 @@ class UFOOperator(object):
 
     def locationToDescriptiveString(self, loc):
         # make a nice descriptive string from the location
+        # Check if the discrete location is None.
         t = []
         cl, dl = self.splitLocation(loc)
         for continuousAxis in sorted(cl.keys()):
             t.append(f'{continuousAxis}_{cl[continuousAxis]}')
-        for discreteAxis in sorted(dl.keys()):
-            t.append(f'{discreteAxis}_{dl[discreteAxis]}')
+        if dl is not None:
+            for discreteAxis in sorted(dl.keys()):
+                t.append(f'{discreteAxis}_{dl[discreteAxis]}')
         return '_'.join(t)
 
     def pathForInstance(self, instanceDescriptor):
@@ -1448,6 +1469,7 @@ class UFOOperator(object):
         # make one instance for this location. This is a shortcut for making an
         # instanceDescriptor. So it makes some assumptions about the font names.
         # Otherwise all the geometry will be exactly what it needs to be.
+        self.loadFonts()
         continuousLocation, discreteLocation = self.splitLocation(location)
         defaultFont = self.findDefaultFont(discreteLocation=discreteLocation)
         if defaultFont is not None:
@@ -1524,6 +1546,7 @@ class UFOOperator(object):
     # @memoize
     def makeFontProportions(self, location, bend=False, roundGeometry=True):
         """Calculate the basic font proportions for this location, to map out expectations for drawing"""
+        self.loadFonts()
         continuousLocation, discreteLocation = self.splitLocation(location)
         infoMutator = self.getInfoMutator(discreteLocation=discreteLocation)
         data = dict(unitsPerEm=1000, ascender=750, descender=-250, xHeight=500)
@@ -1557,8 +1580,8 @@ class UFOOperator(object):
 
         Returns: a mathglyph, results are cached
         """
+        self.loadFonts()
         continuousLocation, discreteLocation = self.splitLocation(location)
-
         bend=False  #
         if not self.extrapolate:
             # Axis values are in userspace, so this needs to happen *after* clipping.
@@ -1609,6 +1632,7 @@ class UFOOperator(object):
         """
         if self.debug:
             self.logger.info(f"\t\t\tmakeOneInfo for {location}")
+        self.loadFonts()
         bend = False
         anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(location)
         # so we can take the math object that comes out of the calculation
@@ -1639,6 +1663,7 @@ class UFOOperator(object):
         """
         if self.debug:
             self.logger.info(f"\t\t\tmakeOneKerning for {location}")
+        self.loadFonts()
         bend = False
         kerningObject = None
         anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical = self.getLocationType(location)
@@ -1853,3 +1878,5 @@ if __name__ == "__main__":
 
     for instanceDescriptor in doc.instances:
         print('path for instancedescriptor', doc.pathForInstance(instanceDescriptor))
+
+    doc.collectSkippedGlyphs()
