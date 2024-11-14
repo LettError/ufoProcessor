@@ -265,6 +265,12 @@ class UFOOperator(object):
     def addAxisDescriptor(self, **kwargs):
         return self.doc.addAxisDescriptor(**kwargs)
 
+    def addLocationLabel(self, locationLabelDescriptor):
+        self.doc.addLocationLabel(locationLabelDescriptor)
+
+    def addLocationLabelDescriptor(self, **kwargs):
+        return self.doc.addLocationLabelDescriptor(**kwargs)
+
     def addRule(self, ruleDescriptor):
         self.doc.addRule(ruleDescriptor)
 
