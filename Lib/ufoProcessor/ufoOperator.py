@@ -399,6 +399,11 @@ class UFOOperator(object):
     # loading and updating fonts
     def loadFonts(self, reload=False):
         # Load the fonts and find the default candidate based on the info flag
+        if self.logger is None and self.debug:
+            # in some cases the UFOProcessor is initialised without debug
+            # and then it is switched on afterwards. So have to check if
+            # we have a logger before proceding. 
+            self.startLog()
         self.glyphNames = list({glyphname for font in self.fonts.values() for glyphname in font.keys()})
         if self._fontsLoaded and not reload:
             if self.debug:
@@ -1761,8 +1766,12 @@ if __name__ == "__main__":
     if ds5Path is None:
         doc = UFOOperator()
     else:
-        doc = UFOOperator(ds5Path, useVarlib=True, debug=debug)
+        doc = UFOOperator(ds5Path, useVarlib=True, debug=False)
+        print("Initialised without debug, no logger:", doc.logger)
+        doc.debug=True
+        print("Set debug to True, after initialisation:", doc.debug)
         doc.loadFonts()
+        print("loadFonts checks and creates a logger if needed:", doc.logger)
 
 
     # test the getLibEntryMutator
