@@ -298,7 +298,8 @@ class UFOOperator(object):
             else:
                 if kwargs["name"] in [existingSourceDescriptor.name for existingSourceDescriptor in self.sources]:
                     sourceDescriptorName = self.sourceNameGenerator()
-                    warn(f"addSource warning: sourceDescriptor.name has a duplicate name '{kwargs["name"]}''. Changing to '{sourceDescriptorName}'.")
+                    name = kwargs["name"]
+                    warn(f"addSourceDescriptor warning: sourceDescriptor.name has a duplicate name '{name}''. Changing to '{sourceDescriptorName}'.")
                     kwargs["name"] = sourceDescriptorName
             self.fonts[kwargs["name"]] = kwargs["font"]
         return self.doc.addSourceDescriptor(**kwargs)
