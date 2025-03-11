@@ -279,11 +279,27 @@ class UFOOperator(object):
 
     def addSource(self, sourceDescriptor):
         if sourceDescriptor.font is not None:
+            if sourceDescriptor.name is None:
+                # make sure it has a unique name
+                sourceDescriptor.name = self.sourceNameGenerator()
+            else:
+                if sourceDescriptor.name in [existingSourceDescriptor.name for existingSourceDescriptor in self.sources]:
+                    sourceDescriptorName = self.sourceNameGenerator()
+                    warn(f"addSource warning: sourceDescriptor.name has a duplicate name '{sourceDescriptor.name}'. Changing to '{sourceDescriptorName}'.")
+                    sourceDescriptor.name = sourceDescriptorName
             self.fonts[sourceDescriptor.name] = sourceDescriptor.font
         self.doc.addSource(sourceDescriptor)
 
     def addSourceDescriptor(self, **kwargs):
         if "font" in kwargs:
+            if kwargs.get("name") is None:
+                # make sure it has a unique name
+                kwargs["name"] = self.sourceNameGenerator()
+            else:
+                if kwargs["name"] in [existingSourceDescriptor.name for existingSourceDescriptor in self.sources]:
+                    sourceDescriptorName = self.sourceNameGenerator()
+                    warn(f"addSource warning: sourceDescriptor.name has a duplicate name '{kwargs["name"]}''. Changing to '{sourceDescriptorName}'.")
+                    kwargs["name"] = sourceDescriptorName
             self.fonts[kwargs["name"]] = kwargs["font"]
         return self.doc.addSourceDescriptor(**kwargs)
 
@@ -402,7 +418,7 @@ class UFOOperator(object):
         if self.logger is None and self.debug:
             # in some cases the UFOProcessor is initialised without debug
             # and then it is switched on afterwards. So have to check if
-            # we have a logger before proceding. 
+            # we have a logger before proceding.
             self.startLog()
         self.glyphNames = list({glyphname for font in self.fonts.values() for glyphname in font.keys()})
         if self._fontsLoaded and not reload:
@@ -415,7 +431,7 @@ class UFOOperator(object):
         for i, sourceDescriptor in enumerate(self.doc.sources):
             if sourceDescriptor.name is None:
                 # make sure it has a unique name
-                sourceDescriptor.name = "source.%d" % i
+                sourceDescriptor.name = self.sourceNameGenerator()
             if sourceDescriptor.name not in self.fonts:
                 if os.path.exists(sourceDescriptor.path):
                     font = self.fonts[sourceDescriptor.name] = self._instantiateFont(sourceDescriptor.path)
@@ -719,6 +735,13 @@ class UFOOperator(object):
                 continue
             [names.add(n) for n in _getComponentNames(sourceFont[glyphName])]
         return list(names)
+
+    def sourceNameGenerator(self, prefix="source", count=1):
+        name = f"{prefix}.{count}"
+        for sourceDescriptor in self.sources:
+            if sourceDescriptor.name == name:
+                return self.sourceNameGenerator(prefix=prefix, count=count + 1)
+        return name
 
     def findSourceDescriptorsForDiscreteLocation(self, discreteLocDict=None):
         # return a list of all sourcedescriptors that share the values in the discrete loc tuple
