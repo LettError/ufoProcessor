@@ -183,6 +183,8 @@ class UFOOperator(object):
 
     # RF italic slant offset lib key
     italicSlantOffsetLibKey = "com.typemytype.robofont.italicSlantOffset"
+    # Public key for list of glyphs we want to skip on export / generate. Stored in font.lib
+    skipExportGlyphKey = 'public.skipExportGlyphs'
 
     def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, extrapolate=False, strict=False, debug=False):
         self.ufoVersion = ufoVersion
@@ -421,6 +423,7 @@ class UFOOperator(object):
             # and then it is switched on afterwards. So have to check if
             # we have a logger before proceding.
             self.startLog()
+        # check skip glyphs and muted glyphs when making this list
         self.glyphNames = list({glyphname for font in self.fonts.values() for glyphname in font.keys()})
         if self._fontsLoaded and not reload:
             if self.debug:
@@ -1306,11 +1309,78 @@ class UFOOperator(object):
             locHorizontal, locVertical = self.splitAnisotropic(loc)
         return anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical
 
+    def ignoreGlyph(self, glyphNameOrList):
+        # add these glyphnames to
+        #       designspace.lib['public.skipExportGlyphs']
+        #       sourceDescriptor.mutedGlyphNames
+        # .. to prevent:
+        #       trying to make instances when we don't want them to
+        #       include these glyphs in any output
+        if isinstance(glyphNameOrList, str):
+            glyphNameOrList = [glyphNameOrList]
+        for glyphName in glyphNameOrList:
+            # add name to muted glyphs
+            # this has to happen for each source
+            for sd in self.sources:
+                if glyphName not in sd.mutedGlyphNames: 
+                    sd.mutedGlyphNames.append(glyphName)
+            for fontPath, fontObj in self.fonts.items():
+                skippedGlyphsForFont = fontObj.lib.get(self.skipExportGlyphKey, [])
+                if glyphName not in skippedGlyphsForFont:
+                    skippedGlyphsForFont.append(glyphName)
+                    fontObj.lib[self.skipExportGlyphKey] = skippedGlyphsForFont
+
+    def includeGlyph(self, glyphNameOrList):
+        # remove these glyphnames from
+        #       designspace.lib['public.skipExportGlyphs']
+        #       sourceDescriptor.mutedGlyphNames
+        # .. because we want:
+        #       to interpolate them when making instances
+        #       include these glyphs in any output
+        if isinstance(glyphNameOrList, str):
+            glyphNameOrList = [glyphNameOrList]
+        for glyphName in glyphNameOrList:
+            # remove from muted glyphs
+            for sd in self.sources:
+                if glyphName in sd.mutedGlyphNames: 
+                    sd.mutedGlyphNames.remove(glyphName)
+            # remove from skipped glyphs
+            for fontPath, fontObj in self.fonts.items():
+                skippedGlyphsForFont = fontObj.lib.get(self.skipExportGlyphKey, [])
+                if glyphName in skippedGlyphsForFont:
+                    skippedGlyphsForFont.remove(glyphName)
+                if skippedGlyphsForFont:
+                    fontObj.lib[self.skipExportGlyphKey] = skippedGlyphsForFont
+        # clean up if the lib is empty
+        for fontPath, fontObj in self.fonts.items():
+            if self.skipExportGlyphKey in fontObj.lib:
+                if len(fontObj.lib[self.skipExportGlyphKey]) == 0:
+                    del fontObj.lib[self.skipExportGlyphKey]
+
+    def reportIgnoredGlyphs(self):
+        # print overview of glyphs that are ignored and muted
+        report = []
+        report.append("reportIgnoredGlyphs")
+        report.append(f"\tFont.lib {self.skipExportGlyphKey}:")
+        for fontPath, fontObj in self.fonts.items():
+            ufoName = os.path.basename(fontPath)
+            if self.skipExportGlyphKey in fontObj.lib:
+                report.append(f"\t\t{ufoName}")
+                names = ' '.join(fontObj.lib[self.skipExportGlyphKey])
+                report.append(f"\t\t\t{names}")
+        report.append("\tSource Muted Glyphs")
+        for sd in self.sources:
+            report.append(f"\t\t{sd.name}")
+            names = " ".join(sd.mutedGlyphNames)
+            report.append(f"\t\t\t{names}")
+        return "\n".join(report)
+
+
     def collectSkippedGlyphs(self):
         # return a list of all the glyphnames listed in public.skipExportGlyphs
         names = []
         for fontPath, fontObj in self.fonts.items():
-            for name in fontObj.lib.get('public.skipExportGlyphs', []):
+            for name in fontObj.lib.get(self.skipExportGlyphKey, []):
                 if name not in names:
                     names.append(name)
         if self.debug:
@@ -1918,4 +1988,14 @@ if __name__ == "__main__":
     for instanceDescriptor in doc.instances:
         print('path for instancedescriptor', doc.pathForInstance(instanceDescriptor))
 
+
+    doc.ignoreGlyph("A")
+    doc.ignoreGlyph("A.alt")
+    doc.ignoreGlyph("B")
+    print(doc.reportIgnoredGlyphs())
+    doc.includeGlyph("A.alt")
+    doc.includeGlyph("B")
+    print(doc.reportIgnoredGlyphs())
+    doc.includeGlyph("A")
+    print(doc.reportIgnoredGlyphs())
     doc.collectSkippedGlyphs()
