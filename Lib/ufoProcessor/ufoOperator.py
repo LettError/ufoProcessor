@@ -279,11 +279,27 @@ class UFOOperator(object):
 
     def addSource(self, sourceDescriptor):
         if sourceDescriptor.font is not None:
+            if sourceDescriptor.name is None:
+                # make sure it has a unique name
+                sourceDescriptor.name = self.sourceNameGenerator()
+            else:
+                if sourceDescriptor.name in [existingSourceDescriptor.name for existingSourceDescriptor in self.sources]:
+                    sourceDescriptorName = self.sourceNameGenerator()
+                    warn(f"addSource warning: sourceDescriptor.name has a duplicate name '{sourceDescriptor.name}'. Changing to '{sourceDescriptorName}'.")
+                    sourceDescriptor.name = sourceDescriptorName
             self.fonts[sourceDescriptor.name] = sourceDescriptor.font
         self.doc.addSource(sourceDescriptor)
 
     def addSourceDescriptor(self, **kwargs):
         if "font" in kwargs:
+            if kwargs.get("name") is None:
+                # make sure it has a unique name
+                kwargs["name"] = self.sourceNameGenerator()
+            else:
+                if kwargs["name"] in [existingSourceDescriptor.name for existingSourceDescriptor in self.sources]:
+                    sourceDescriptorName = self.sourceNameGenerator()
+                    warn(f"addSource warning: sourceDescriptor.name has a duplicate name '{kwargs["name"]}''. Changing to '{sourceDescriptorName}'.")
+                    kwargs["name"] = sourceDescriptorName
             self.fonts[kwargs["name"]] = kwargs["font"]
         return self.doc.addSourceDescriptor(**kwargs)
 
