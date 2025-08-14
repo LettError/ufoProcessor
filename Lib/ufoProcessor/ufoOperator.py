@@ -1184,7 +1184,6 @@ class UFOOperator(object):
             will check with self.tempLib[self.mutedDesignLocationsLibKey] if the source location
             is muted or not.
         """
-        print("collectSourcesForGlyph")
         items = []
         empties = []
         foundEmpty = False
