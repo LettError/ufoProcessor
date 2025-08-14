@@ -1155,10 +1155,15 @@ class UFOOperator(object):
         # add the location dict mutedLocation to the list in tempLib.
         # the mutedLocation is only for the lifetime of this object
         # it is not stored in the designspace document.
+        if mutedLocation == self.newDefaultLocation(bend=True):
+            # the proposed muted location is the default location
+            # and that is not going to work. 
+            return False
         if not self.mutedDesignLocationsLibKey in self.tempLib:
             self.tempLib[self.mutedDesignLocationsLibKey] = []
         self.tempLib[self.mutedDesignLocationsLibKey].append(mutedLocation)
         self.changed()
+        return True
 
     def clearMutedDesignLocations(self):
         # delete all muted designLocations from tempLib
