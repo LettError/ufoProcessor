@@ -185,11 +185,13 @@ class UFOOperator(object):
     italicSlantOffsetLibKey = "com.typemytype.robofont.italicSlantOffset"
 
     # Public key for list of glyphs we want to skip on export / generate. Stored in font.lib
-    # Note: on second thought, this is not the right one to use. 
     skipExportGlyphKey = 'public.skipExportGlyphs'
 
-    # Priavte key for list of glyphs we want to skip when calculating instances
+    # Private key for list of glyphs we want to skip when calculating instances
     excludeGlyphFromInstanceKey = 'com.letterror.ufoProcessor.excludeFromInstance'
+
+    # UFOOperator temp lib muted design locations key
+    mutedDesignLocationsLibKey = 'mutedDesignLocations'
 
     def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, extrapolate=False, strict=False, debug=False):
         self.ufoVersion = ufoVersion
@@ -1154,6 +1156,27 @@ class UFOOperator(object):
             del new[mutedAxisName]
         return ignoreSource, new
 
+
+    # some admin for muted designlocations
+    def muteDesignLocation(self, mutedLocation):
+        # add the location dict mutedLocation to the list in tempLib.
+        # the mutedLocation is only for the lifetime of this object
+        # it is not stored in the designspace document.
+        if mutedLocation == self.newDefaultLocation(bend=True):
+            # the proposed muted location is the default location
+            # and that is not going to work. 
+            return False
+        if not self.mutedDesignLocationsLibKey in self.tempLib:
+            self.tempLib[self.mutedDesignLocationsLibKey] = []
+        self.tempLib[self.mutedDesignLocationsLibKey].append(mutedLocation)
+        self.changed()
+        return True
+
+    def clearMutedDesignLocations(self):
+        # delete all muted designLocations from tempLib
+        del self.tempLib[self.mutedDesignLocationsLibKey]
+        self.changed()
+
     @memoize
     def collectSourcesForGlyph(self, glyphName, decomposeComponents=False, discreteLocation=None, asMathGlyph=True):
         """ Return all source glyph objects.
@@ -1164,6 +1187,9 @@ class UFOOperator(object):
             on a complete font. If you're calculating previews for instance.
 
             findSourceDescriptorsForDiscreteLocation returns sources from layers as well
+
+            will check with self.tempLib[self.mutedDesignLocationsLibKey] if the source location
+            is muted or not.
         """
         items = []
         empties = []
@@ -1187,6 +1213,12 @@ class UFOOperator(object):
                 if self.debug:
                     self.logger.info(f"\t\tglyphName {glyphName} is muted")
                 continue
+            if self.mutedDesignLocationsLibKey in self.tempLib:
+                if sourceDescriptor.location in self.tempLib[self.mutedDesignLocationsLibKey]:
+                    if self.debug:
+                        self.logger.info(f"\t\tlocation {sourceDescriptor.location} is muted")
+                    continue
+                #@@
             thisIsDefault = self.isLocalDefault(sourceDescriptor.location)
             ignoreSource, filteredLocation = self.filterThisLocation(sourceDescriptor.location, self.mutedAxisNames)
             if ignoreSource:
