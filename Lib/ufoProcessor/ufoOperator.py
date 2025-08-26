@@ -184,14 +184,31 @@ class UFOOperator(object):
     # RF italic slant offset lib key
     italicSlantOffsetLibKey = "com.typemytype.robofont.italicSlantOffset"
 
-    # Public key for list of glyphs we want to skip on export / generate. Stored in font.lib
-    skipExportGlyphKey = 'public.skipExportGlyphs'
+    # Public key for list of glyph names need to be skipped on generate. Stored in font.lib
+    # "Export" is understood to mean "generating binaries". A mechanism to remove glyphs
+    # that are not needed in the binary, it needs to be recorded in the UFO instance, 
+    # but it has no bearing on its glyphset.
+    # font.lib, saved with the generated UFO.
+    skipExportGlyphLibKey = 'public.skipExportGlyphs'
 
-    # Private key for list of glyphs we want to skip when calculating instances
-    excludeGlyphFromInstanceKey = 'com.letterror.ufoProcessor.excludeFromInstance'
+    # Private key for list of glyph names we want to exclude when calculating instances
+    # "Exclude" is understood to mean "do not attempt to instantiate". It is a
+    # mechanism to make instances while some of the glyph data is not ready.
+    # Note: this mechanism does not let us exclude specific glyphs in specific layers.
+    # Quick answer: this would add a lot of plumbing and there is no indication
+    # that this is a real problem at this time.
+    # UFOOperator.lib, saved with the designspace.
+    excludeGlyphFromInstanceLibKey = 'com.letterror.ufoProcessor.excludeFromInstance'
 
-    # UFOOperator temp lib muted design locations key
+    # UFOOperator key for temporarily muting specific design locations.
+    # Any source at this location will be ignored when building a new mutator.
+    # Usecase: when making partial sources, we need to be able to calculate a preview
+    # of the glyph *without* that specific glyph. 
+    # Does this need to be public key?
+    # UFOOperator.tempLib, not saved with the designspace.
     mutedDesignLocationsLibKey = 'mutedDesignLocations'
+
+    # In summary, these are separate mechanisms to mute glyphs, mute location, exclude glyphs and skip glyphs.
 
     def __init__(self, pathOrObject=None, ufoVersion=3, useVarlib=True, extrapolate=False, strict=False, debug=False):
         self.ufoVersion = ufoVersion
@@ -1244,7 +1261,7 @@ class UFOOperator(object):
                 if glyphName not in sourceLayer:
                     # start looking for a glyph
                     # this might be a support in a sparse layer
-                    # so we're skipping!
+                    # so we're ignoring this glyph!
                     continue
             # still have to check if the sourcelayer glyph is empty
             if glyphName not in sourceLayer:
@@ -1347,45 +1364,46 @@ class UFOOperator(object):
         return anisotropic, continuousLocation, discreteLocation, locHorizontal, locVertical
 
     def excludeGlyph(self, glyphNameOrList):
-        # add the glyphnames to the list of glyphs we do not want to make instances for
+        # Add the glyphnames to the list of glyphs we do not want to make instances for.
         if isinstance(glyphNameOrList, str):
             glyphNameOrList = [glyphNameOrList]
-        excluding = self.lib.get(self.excludeGlyphFromInstanceKey, [])
+        excluding = self.lib.get(self.excludeGlyphFromInstanceLibKey, [])
         for name in glyphNameOrList:
             if name not in excluding:
                 excluding.append(name)
         excluding.sort()
-        self.lib[self.excludeGlyphFromInstanceKey] = excluding
+        self.lib[self.excludeGlyphFromInstanceLibKey] = excluding
         if self.debug:
-            self.logger.info(f"excludeGlyph(): excluded glyphs: {self.lib[self.excludeGlyphFromInstanceKey]}")
+            self.logger.info(f"excludeGlyph(): excluded glyphs: {self.lib[self.excludeGlyphFromInstanceLibKey]}")
 
     def includeGlyph(self, glyphNameOrList):
-        # remove the glyphnames to the list of glyphs we do not want to make instances for
+        # Remove the glyphnames from the list of glyphs we do not want to make instances for.
+        # In other words: start making instances for these glyphs again.
         if isinstance(glyphNameOrList, str):
             glyphNameOrList = [glyphNameOrList]
-        excluding = self.lib.get(self.excludeGlyphFromInstanceKey, [])
+        excluding = self.lib.get(self.excludeGlyphFromInstanceLibKey, [])
         for name in glyphNameOrList:
             if name in excluding:
                 excluding.remove(name)
         excluding.sort()
         if excluding:
-            self.lib[self.excludeGlyphFromInstanceKey] = excluding
-        if self.excludeGlyphFromInstanceKey in self.lib:
-            if self.lib[self.excludeGlyphFromInstanceKey] == []:
-                del self.lib[self.excludeGlyphFromInstanceKey]
+            self.lib[self.excludeGlyphFromInstanceLibKey] = excluding
+        if self.excludeGlyphFromInstanceLibKey in self.lib:
+            if self.lib[self.excludeGlyphFromInstanceLibKey] == []:
+                del self.lib[self.excludeGlyphFromInstanceLibKey]
         if self.debug:
-            self.logger.info(f"includeGlyph(): excluded glyphs: {self.lib.get(self.excludeGlyphFromInstanceKey, [])}")
+            self.logger.info(f"includeGlyph(): excluded glyphs: {self.lib.get(self.excludeGlyphFromInstanceLibKey, [])}")
 
     def reportExcludedGlyphs(self):
-        # print overview of glyphs that are ignored and muted
+        # Print an overview of glyphs that are ignored and muted
         report = []
-        excluding = self.lib.get(self.excludeGlyphFromInstanceKey)
+        excluding = self.lib.get(self.excludeGlyphFromInstanceLibKey)
         if excluding:
-            report.append(f"\tDesignspace excluded glyphs: {self.excludeGlyphFromInstanceKey}")
+            report.append(f"\tDesignspace excluded glyphs: {self.excludeGlyphFromInstanceLibKey}")
             for name in excluding:
                 report.append(f"\t{name}")
         else:
-            report.append(f"\nNo glyphs excluded in {self.excludeGlyphFromInstanceKey}")
+            report.append(f"\nNo glyphs excluded in {self.excludeGlyphFromInstanceLibKey}")
         for sd in self.sources:
             if sd.mutedGlyphNames:
                 report.append(f"\t\t{sd.name}")
@@ -1394,8 +1412,8 @@ class UFOOperator(object):
         return "\n".join(report)
 
     def collectExcludedGlyphs(self):
-        # return a list of all the glyphnames listed in self.excludeGlyphFromInstanceKey
-        excluding = self.lib.get(self.excludeGlyphFromInstanceKey)
+        # return a list of all the glyphnames listed in self.excludeGlyphFromInstanceLibKey
+        excluding = self.lib.get(self.excludeGlyphFromInstanceLibKey)
         if excluding is None:
             excluding = []
         if self.debug:
