@@ -425,6 +425,14 @@ class UFOOperator(object):
         return self.doc.variableFonts
 
     @property
+    def elidedFallbackName(self):
+        return self.doc.elidedFallbackName
+
+    @elidedFallbackName.setter
+    def elidedFallbackName(self, name):
+        self.doc.elidedFallbackName = name
+
+    @property
     def writerClass(self):
         return self.doc.writerClass
 
@@ -448,7 +456,7 @@ class UFOOperator(object):
             # we have a logger before proceding.
             self.startLog()
         # check excluded glyphs and muted glyphs when making this list
-        self.glyphNames = list({glyphname for font in self.fonts.values() for glyphname in font.keys()})
+        self.glyphNames = list({glyphname for font in self.fonts.values() for glyphname in font.keys() if font is not None})
         if self._fontsLoaded and not reload:
             if self.debug:
                 self.logger.info("\t\t-- loadFonts called, but fonts are loaded already and no reload requested")
@@ -2031,3 +2039,15 @@ if __name__ == "__main__":
     doc.includeGlyph("glyphOne")
     print(doc.reportExcludedGlyphs())
     print(doc.lib)
+
+    # expose the doc elidedFallbackName
+    # add the elidedFallbackName attribute to the
+    # axes tag
+    print(doc.elidedFallbackName)
+    # this removes the attribute
+    doc.elidedFallbackName = None
+    # this sets the attribute
+    doc.elidedFallbackName = "Regular"
+    print(doc.elidedFallbackName)
+    doc.write(ds5Path)
+    print('ds5Path', ds5Path)

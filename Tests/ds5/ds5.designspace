@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <designspace format="5.0">
-  <axes>
+  <axes elidedfallbackname="Regular">
     <axis tag="wdth" name="width" minimum="400" maximum="1000" default="400">
       <map input="400" output="400"/>
       <map input="700" output="900"/>
