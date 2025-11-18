@@ -26,6 +26,19 @@ UFOProcessor could execute *some* of the feature-variation rules when it generat
 ## Discrete axes
 A *discrete axis* is a way to fit different interpolating systems into a single designspace. For instance a *roman* could be on ```italic=0``` and the *italic* on ```italic=1```. The roman and italic are in the same file, but to UFOOperator they are separate systems that interpolate along the normal axes. If is are more than one discrete axis in a designspace, each combination of the axis values, each *discrete location* can be an interpolating system. So some of the methods of UFOOperator require a `discrete location` to know which interpolating system is needed. 
 
+## Methods for muting, skipping and excluding
+
+	That does not sound very friendly, but these are different ways of preventing glyphs from going somewhere. Hidden in the code, it is useful to have this here.
+
+   * **skipExportGlyphLibKey = 'public.skipExportGlyphs'** Public key for list of glyph names need to be skipped on generate. "Export" is understood to mean "when generating binaries". Stored in the font.lib, saved with the generated UFO, UFOOperator copies the key + value to the instances, but does not do anything with the names. 
+
+   * **excludeGlyphFromInstanceLibKey = 'com.letterror.ufoProcessor.excludeFromInstance'** This is a private key for list of glyph names we want to exclude when calculating instances. "Exclude" is understood to mean "do not attempt to instantiate". It is a mechanism to make instances while some of the glyph data is not ready. Note: this mechanism does not let us exclude specific glyphs in specific layers. UFOOperator.lib, saved with the designspace.
+
+   * **Muted glyphnames** are stored for each source descriptor separately in the designspace. This prevents a specific glyph from a specific source from being used in the calculation. So for instance, you can mute the "A" from the Bold, but keep the "A" from the Regular and the Extra Bold.
+
+   * **mutedDesignLocationsLibKey = 'mutedDesignLocations'** UFOOperator key for temporarily muting entire specific design locations. Any source at this location will be ignored when building a new mutator. Usecase: when making partial sources, we need to be able to calculate a preview of the glyph *without* that specific glyph. UFOOperator.tempLib, not saved with the designspace.
+    
+
 
 ## Examples UFOProcessor (old)
 
