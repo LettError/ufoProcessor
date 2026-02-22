@@ -908,7 +908,7 @@ class UFOOperator(object):
                 return reverseComponentMapping
         return {}
 
-    def generateUFOs(self, useVarlib=None):
+    def generateUFOs(self, useVarlib=None, processRules=False):
         # generate an UFO for each of the instance locations
         previousModel = self.useVarlib
         generatedFontPaths = []
@@ -927,7 +927,7 @@ class UFOOperator(object):
             bend = False
             font = self.makeInstance(
                 instanceDescriptor,
-                # processRules,
+                doRules=processRules,
                 glyphNames=self.glyphNames,
                 decomposeComponents=False,
                 pairs=pairs,
