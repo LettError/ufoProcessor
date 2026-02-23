@@ -8,7 +8,7 @@ import collections
 import warnings
 # from pprint import pprint
 
-from fontTools.designspaceLib import DesignSpaceDocument, processRules
+from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
 from fontTools.misc import plistlib
 from fontTools.ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
 
