@@ -188,7 +188,7 @@ class UFOOperator(object):
 
     # Public key for list of glyph names need to be skipped on generate. Stored in font.lib
     # "Export" is understood to mean "generating binaries". A mechanism to remove glyphs
-    # that are not needed in the binary, it needs to be recorded in the UFO instance, 
+    # that are not needed in the binary, it needs to be recorded in the UFO instance,
     # but it has no bearing on its glyphset.
     # font.lib, saved with the generated UFO.
     skipExportGlyphLibKey = 'public.skipExportGlyphs'
@@ -205,7 +205,7 @@ class UFOOperator(object):
     # UFOOperator key for temporarily muting specific design locations.
     # Any source at this location will be ignored when building a new mutator.
     # Usecase: when making partial sources, we need to be able to calculate a preview
-    # of the glyph *without* that specific glyph. 
+    # of the glyph *without* that specific glyph.
     # Does this need to be public key?
     # UFOOperator.tempLib, not saved with the designspace.
     mutedDesignLocationsLibKey = 'mutedDesignLocations'
@@ -933,6 +933,15 @@ class UFOOperator(object):
                 pairs=pairs,
                 bend=bend,
             )
+            # update font info from the designspace lib
+            # https://fonttools.readthedocs.io/en/stable/designspaceLib/index.html#public-fontinfo
+            for infoDict in [
+                self.doc.lib.get("public.fontInfo", dict()),
+                instanceDescriptor.lib.get("public.fontInfo", dict())
+            ]:
+                for key, value in infoDict:
+                    setattr(font.info, key, value)
+
             if self.debug:
                 self.logger.info(f"\t\t{os.path.basename(instanceDescriptor.path)}")
 
@@ -1191,7 +1200,7 @@ class UFOOperator(object):
         # it is not stored in the designspace document.
         if mutedLocation == self.newDefaultLocation(bend=True):
             # the proposed muted location is the default location
-            # and that is not going to work. 
+            # and that is not going to work.
             return False
         if not self.mutedDesignLocationsLibKey in self.tempLib:
             self.tempLib[self.mutedDesignLocationsLibKey] = []
