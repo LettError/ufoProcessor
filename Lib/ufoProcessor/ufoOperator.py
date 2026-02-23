@@ -25,6 +25,8 @@ import fontParts.fontshell.font
 from ufoProcessor.varModels import VariationModelMutator
 from ufoProcessor.emptyPen import checkGlyphIsEmpty, DecomposePointPen
 from ufoProcessor.logger import Logger
+from ufoProcessor.rules import swapGlyphNames
+
 
 _memoizeCache = dict()
 _memoizeStats = dict()
@@ -906,7 +908,7 @@ class UFOOperator(object):
                 return reverseComponentMapping
         return {}
 
-    def generateUFOs(self, useVarlib=None):
+    def generateUFOs(self, useVarlib=None, doRules=False):
         # generate an UFO for each of the instance locations
         previousModel = self.useVarlib
         generatedFontPaths = []
@@ -925,7 +927,7 @@ class UFOOperator(object):
             bend = False
             font = self.makeInstance(
                 instanceDescriptor,
-                # processRules,
+                doRules=doRules,
                 glyphNames=self.glyphNames,
                 decomposeComponents=False,
                 pairs=pairs,
@@ -1424,8 +1426,9 @@ class UFOOperator(object):
         excluding = self.lib.get(self.excludeGlyphFromInstanceLibKey)
         if excluding is None:
             excluding = []
-        if self.debug:
-            self.logger.info(f"collectExcludedGlyphs: {excluding}")
+        #if self.debug:
+        #    if len(excluding) > 0:
+        #        self.logger.info(f"collectExcludedGlyphs: {excluding}")
         return excluding
 
     def makeInstance(self, instanceDescriptor,
@@ -1435,8 +1438,6 @@ class UFOOperator(object):
             pairs=None,
             bend=False):
         """ Generate a font object for this instance """
-        if doRules is not None:
-            warn('The doRules argument in DesignSpaceProcessor.makeInstance() is deprecated', DeprecationWarning, stacklevel=2)
         if isinstance(instanceDescriptor, dict):
             instanceDescriptor = self.doc.writerClass.instanceDescriptorClass(**instanceDescriptor)
         # hmm getFullDesignLocation does not support anisotropc locations?
@@ -1525,6 +1526,7 @@ class UFOOperator(object):
         # remove exclude glyphs
         selectedGlyphNames = [name for name in selectedGlyphNames if name not in self.collectExcludedGlyphs()]
         for glyphName in selectedGlyphNames:
+            referenceLocationForRules = None
             glyphMutator, unicodes = self.getGlyphMutator(glyphName, decomposeComponents=decomposeComponents, discreteLocation=discreteLocation)
             if glyphMutator is None:
                 if self.debug:
@@ -1537,16 +1539,18 @@ class UFOOperator(object):
             try:
                 if not self.isAnisotropic(continuousLocation):
                     glyphInstanceObject = glyphMutator.makeInstance(continuousLocation, bend=bend)
+                    referenceLocationForRules = continuousLocation
                 else:
                     # split anisotropic location into horizontal and vertical components
                     horizontalGlyphInstanceObject = glyphMutator.makeInstance(locHorizontal, bend=bend)
+                    referenceLocationForRules = locHorizontal
                     verticalGlyphInstanceObject = glyphMutator.makeInstance(locVertical, bend=bend)
                     # merge them again in a beautiful single line:
                     glyphInstanceObject = (1, 0) * horizontalGlyphInstanceObject + (0, 1) * verticalGlyphInstanceObject
             except IndexError:
                 # alignment problem with the data?
                 if self.debug:
-                    note = "makeInstance: Quite possibly some sort of data alignment error in %s" % glyphName
+                    note = f"makeInstance: Quite possibly some sort of data alignment error in {glyphName}"
                     self.logger.info(note)
                 continue
             if self.roundGeometry:
@@ -1577,12 +1581,33 @@ class UFOOperator(object):
                 font[glyphName].clear()
                 glyphInstanceObject.drawPoints(pPen)
             font[glyphName].width = glyphInstanceObject.width
-            # add designspace location to lib
-            font.lib['ufoProcessor.fullDesignspaceLocation'] = list(instanceDescriptor.getFullDesignLocation(self.doc).items())
-            if self.useVarlib:
-                font.lib['ufoProcessor.mathmodel'] = "fonttools.varlib"
-            else:
-                font.lib['ufoProcessor.mathmodel'] = "mutatorMath"
+            
+        # add designspace location to lib
+        # needs to happen after all glyphs are done
+        font.lib['ufoProcessor.fullDesignspaceLocation'] = list(instanceDescriptor.getFullDesignLocation(self.doc).items())
+        if self.useVarlib:
+            font.lib['ufoProcessor.mathmodel'] = "fonttools.varlib"
+        else:
+            font.lib['ufoProcessor.mathmodel'] = "mutatorMath"
+
+        if doRules == True:
+            # experimental retrofitting of rule based swapping when making instances. 
+            # Q: in case of an anisotropic location, which value should trigger the rule? 
+            # This will use the horizontal component of the anisotropic location,
+            # or the whole location for executing the rules.
+            assert referenceLocationForRules is not None
+            resultNames = processRules(self.rules, referenceLocationForRules, self.glyphNames)
+            swapRecord = []
+            for oldName, newName in zip(self.glyphNames, resultNames):
+                if oldName != newName:
+                    swapGlyphNames(font, oldName, newName)
+                    swapRecord.append((oldName, newName))
+            if swapRecord:
+                font.lib['ufoProcessor.glyphsSwappedByRules'] = swapRecord
+            if self.debug:
+                note = f"makeInstance: processed the rules for {swapRecord}"
+                self.logger.info(note)
+
         if self.debug:
             self.logger.info(f"\t\t\t{len(selectedGlyphNames)} glyphs added")
         return font
