@@ -3,21 +3,18 @@
 from __future__ import print_function, division, absolute_import
 
 import os
-import logging, traceback
+import traceback
 import collections
+import warnings
 # from pprint import pprint
 
-from fontTools.designspaceLib import DesignSpaceDocument, SourceDescriptor, InstanceDescriptor, AxisDescriptor, RuleDescriptor, processRules
+from fontTools.designspaceLib import DesignSpaceDocument, processRules
 from fontTools.misc import plistlib
 from fontTools.ufoLib import fontInfoAttributesVersion1, fontInfoAttributesVersion2, fontInfoAttributesVersion3
-from fontTools.varLib.models import VariationModel, normalizeLocation
 
 import defcon
 import fontParts.fontshell.font
 import defcon.objects.font
-from defcon.objects.font import Font
-from defcon.pens.transformPointPen import TransformPointPen
-from defcon.objects.component import _defaultTransformation
 from fontMath.mathGlyph import MathGlyph
 from fontMath.mathInfo import MathInfo
 from fontMath.mathKerning import MathKerning
@@ -101,6 +98,7 @@ def build(
     """
         Simple builder for UFO designspaces.
     """
+    warnings.warn("'ufoProcessor.build(...)' is deprecated.", DeprecationWarning)
     import os, glob
     if os.path.isdir(documentPath):
         # process all *.designspace documents in this folder
@@ -169,6 +167,7 @@ class DesignSpaceProcessor(DesignSpaceDocument):
     mathKerningClass = MathKerning
 
     def __init__(self, readerClass=None, writerClass=None, fontClass=None, ufoVersion=3, useVarlib=False):
+        warnings.warn("'ufoProcessor.DesignSpaceProcessor(...)' is deprecated, use `ufoProcessor.ufoOperator.UFOOperator`.", DeprecationWarning)
         super(DesignSpaceProcessor, self).__init__(readerClass=readerClass, writerClass=writerClass)
 
         self.ufoVersion = ufoVersion         # target UFO version
