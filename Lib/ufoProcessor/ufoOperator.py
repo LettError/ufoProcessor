@@ -939,7 +939,7 @@ class UFOOperator(object):
                 self.doc.lib.get("public.fontInfo", dict()),
                 instanceDescriptor.lib.get("public.fontInfo", dict())
             ]:
-                for key, value in infoDict:
+                for key, value in infoDict.items():
                     setattr(font.info, key, value)
 
             if self.debug:
