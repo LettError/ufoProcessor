@@ -457,8 +457,6 @@ class UFOOperator(object):
             # and then it is switched on afterwards. So have to check if
             # we have a logger before proceding.
             self.startLog()
-        # check excluded glyphs and muted glyphs when making this list
-        self.glyphNames = list({glyphname for font in self.fonts.values() for glyphname in font.keys() if font is not None})
         if self._fontsLoaded and not reload:
             if self.debug:
                 self.logger.info("\t\t-- loadFonts called, but fonts are loaded already and no reload requested")
@@ -480,7 +478,17 @@ class UFOOperator(object):
                     self.fonts[sourceDescriptor.name] = None
                     if self.debug:
                         actions.append("source ufo not found at %s" % (sourceDescriptor.path))
+
+        # check excluded glyphs and muted glyphs when making this list
+        self.glyphNames = []
+        for font in self.fonts.values():
+            if font is not None:
+                for glyphName in font.keys():
+                    if glyphName not in self.glyphNames:
+                        self.glyphNames.append(glyphName)
+
         if self.debug:
+
             for item in actions:
                 self.logger.infoItem(item)
         self._fontsLoaded = True
